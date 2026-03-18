@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relay</title>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg0: #0a0a0b;
+  --bg1: #111113;
+  --bg2: #18181b;
+  --bg3: #1f1f23;
+  --bg4: #27272c;
+  --border: rgba(255,255,255,0.06);
+  --border-hi: rgba(255,255,255,0.11);
+  --text-1: #ededef;
+  --text-2: #8b8b94;
+  --text-3: #4b4b52;
+  --accent: #6366f1;
+  --accent-hover: #4f52d8;
+  --accent-dim: rgba(99,102,241,0.12);
+  --green: #22c55e;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --mono: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+  --radius: 7px;
+  --sw: 216px;
+}
+
+html, body { height: 100%; overflow: hidden; background: var(--bg0); }
+
+body {
+  font-family: var(--font);
+  color: var(--text-1);
+  font-size: 14px;
+  line-height: 1.5;
+  display: flex;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #333338; }
+
+/* ── Layout ── */
+#app { display: flex; width: 100%; height: 100vh; }
+
+/* ── Sidebar ── */
+#sidebar {
+  width: var(--sw);
+  min-width: var(--sw);
+  background: var(--bg1);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+#ws-header {
+  height: 52px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  cursor: pointer;
+  gap: 10px;
+}
+#ws-header:hover { background: rgba(255,255,255,0.015); }
+.ws-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-led { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 7px var(--green); flex-shrink: 0; }
+
+#sb-scroll { flex: 1; overflow-y: auto; padding: 6px 0; }
+
+.sb-group { margin-bottom: 2px; }
+.sb-group-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px 3px;
+}
+.sb-group-label {
+  font-size: 10.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text-3);
+}
+.sb-group-actions { display: flex; gap: 3px; }
+.sb-icon-btn {
+  width: 18px; height: 18px;
+  background: none; border: none;
+  color: var(--text-3);
+  cursor: pointer; border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; line-height: 1;
+  transition: color 120ms, background 120ms;
+}
+.sb-icon-btn:hover { color: var(--text-2); background: var(--bg3); }
+
+.nav-item {
+  display: flex; align-items: center; gap: 7px;
+  padding: 4px 14px;
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: 13.5px;
+  transition: background 100ms, color 100ms;
+  user-select: none;
+  position: relative;
+  border-radius: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.nav-item:hover { background: var(--bg3); color: var(--text-1); }
+.nav-item.active { background: var(--bg3); color: var(--text-1); font-weight: 500; }
+.nav-item.active::before {
+  content: '';
+  position: absolute; left: 0; top: 4px; bottom: 4px;
+  width: 2px; background: var(--accent);
+  border-radius: 0 2px 2px 0;
+}
+.nav-prefix { color: var(--text-3); font-size: 13px; flex-shrink: 0; width: 14px; text-align: center; }
+.nav-item.active .nav-prefix { color: var(--accent); }
+
+.sb-divider { height: 1px; background: var(--border); margin: 6px 14px; }
+
+#user-panel {
+  border-top: 1px solid var(--border);
+  padding: 8px 10px;
+  display: flex; align-items: center; gap: 9px;
+  flex-shrink: 0; cursor: pointer;
+}
+#user-panel:hover { background: rgba(255,255,255,0.015); }
+.u-av { width: 30px; height: 30px; border-radius: 50%; position: relative; flex-shrink: 0; background: var(--bg3); overflow: visible; }
+.u-av img { width: 30px; height: 30px; border-radius: 50%; display: block; }
+.u-dot { position: absolute; bottom: -1px; right: -1px; width: 8px; height: 8px; background: var(--green); border-radius: 50%; border: 2px solid var(--bg1); }
+.u-info { flex: 1; min-width: 0; }
+.u-name { font-size: 12.5px; font-weight: 600; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
+.u-sub  { font-size: 11px; color: var(--text-3); line-height: 1.3; }
+.u-cfg { background: none; border: none; color: var(--text-3); cursor: pointer; padding: 3px; border-radius: 4px; display: flex; transition: color 120ms; }
+.u-cfg:hover { color: var(--text-1); }
+
+/* ── Main ── */
+#main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+#topbar {
+  height: 52px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 18px; flex-shrink: 0;
+  background: var(--bg0);
+}
+.topbar-hash { font-size: 16px; color: var(--text-3); flex-shrink: 0; }
+.topbar-ch { font-size: 14px; font-weight: 600; color: var(--text-1); }
+.topbar-sep { width: 1px; height: 16px; background: var(--border-hi); flex-shrink: 0; }
+.topbar-topic { font-size: 13px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+
+#invite-chip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 11px;
+  border: 1px solid var(--border-hi);
+  border-radius: 20px;
+  font-size: 11.5px; font-family: var(--mono);
+  color: var(--text-2);
+  cursor: pointer; flex-shrink: 0;
+  transition: border-color 150ms, color 150ms, background 150ms;
+}
+#invite-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+.chip-led { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+
+/* ── Chat ── */
+#chat-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+#messages { flex: 1; padding: 16px 18px 0; display: flex; flex-direction: column; justify-content: flex-end; min-height: 100%; }
+
+.ch-intro { padding: 28px 0 20px; }
+.ch-intro-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px;
+  background: var(--bg3); border: 1px solid var(--border-hi);
+  border-radius: var(--radius); font-size: 18px;
+  margin-bottom: 10px;
+}
+.ch-intro h2 { font-size: 19px; font-weight: 700; color: var(--text-1); margin-bottom: 3px; }
+.ch-intro p { font-size: 13px; color: var(--text-2); }
+
+.date-pill {
+  display: flex; align-items: center; gap: 10px;
+  margin: 18px 0 6px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  color: var(--text-3);
+}
+.date-pill::before, .date-pill::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.msg-group { display: flex; gap: 11px; padding: 2px 6px; border-radius: var(--radius); margin: 0 -6px; transition: background 100ms; }
+.msg-group:hover { background: rgba(255,255,255,0.018); }
+.msg-group.head { margin-top: 12px; }
+
+.msg-av-col { width: 30px; flex-shrink: 0; }
+.msg-av { width: 30px; height: 30px; border-radius: 50%; overflow: hidden; cursor: pointer; background: var(--bg3); flex-shrink: 0; }
+.msg-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.msg-ts-side {
+  width: 30px; text-align: right;
+  font-size: 10px; color: var(--text-3); font-family: var(--mono);
+  opacity: 0; transition: opacity 120ms;
+  padding-top: 5px;
+  line-height: 1.3;
+}
+.msg-group:hover .msg-ts-side { opacity: 1; }
+
+.msg-body { flex: 1; min-width: 0; }
+.msg-meta { display: flex; align-items: baseline; gap: 7px; margin-bottom: 1px; }
+.msg-author { font-size: 13.5px; font-weight: 600; color: var(--text-1); cursor: pointer; }
+.msg-author:hover { color: var(--accent); }
+.msg-time { font-size: 10.5px; color: var(--text-3); font-family: var(--mono); }
+.msg-text { font-size: 14px; color: var(--text-2); line-height: 1.55; word-break: break-word; }
+.msg-text a { color: var(--accent); text-decoration: none; }
+.msg-text a:hover { text-decoration: underline; }
+
+/* ── Input ── */
+#input-section { padding: 10px 18px 18px; flex-shrink: 0; }
+.input-shell {
+  background: var(--bg2);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius);
+  display: flex; align-items: flex-end;
+  transition: border-color 150ms;
+}
+.input-shell:focus-within { border-color: rgba(99,102,241,0.35); }
+
+#msg-input {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: var(--text-1); font-size: 14px; font-family: var(--font);
+  padding: 10px 12px; resize: none;
+  max-height: 180px; overflow-y: auto; line-height: 1.5;
+}
+#msg-input::placeholder { color: var(--text-3); }
+#msg-input:disabled { cursor: not-allowed; }
+
+.send-btn {
+  margin: 5px 5px 5px 0;
+  padding: 6px 14px;
+  background: var(--accent); color: white; border: none;
+  border-radius: 5px; font-size: 13px; font-family: var(--font);
+  font-weight: 500; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+  transition: background 120ms, opacity 120ms;
+}
+.send-btn:hover { background: var(--accent-hover); }
+.send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.input-hint { font-size: 11px; color: var(--text-3); margin-top: 5px; padding: 0 1px; }
+.input-hint kbd {
+  background: var(--bg3); border: 1px solid var(--border-hi);
+  border-radius: 3px; padding: 1px 5px;
+  font-family: var(--mono); font-size: 10px; color: var(--text-2);
+}
+
+.nav-item .del-srv-btn {
+  background: none; border: none; color: var(--text-3);
+  cursor: pointer; font-size: 16px; line-height: 1;
+  padding: 0 2px; border-radius: 3px; flex-shrink: 0;
+  opacity: 0; transition: opacity 120ms, color 120ms;
+}
+.nav-item:hover .del-srv-btn { opacity: 1; }
+.nav-item .del-srv-btn:hover { color: #ef4444; }
+
+.empty-state {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  color: var(--text-3); gap: 6px; text-align: center; padding: 40px;
+}
+.empty-state .es-icon { font-size: 36px; margin-bottom: 6px; }
+.empty-state h3 { font-size: 15px; font-weight: 600; color: var(--text-2); }
+.empty-state p { font-size: 13px; color: var(--text-3); max-width: 280px; line-height: 1.6; }
+
+/* ── Overlay / Dialog ── */
+.overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.65);
+  z-index: 100; align-items: center; justify-content: center;
+  backdrop-filter: blur(6px);
+}
+.overlay.open { display: flex; }
+
+.dialog {
+  background: var(--bg2); border: 1px solid var(--border-hi);
+  border-radius: 12px; padding: 26px 28px;
+  width: 400px; max-width: 92vw;
+  box-shadow: 0 32px 80px rgba(0,0,0,.9);
+  animation: pop 0.17s cubic-bezier(.22,1,.36,1);
+}
+@keyframes pop {
+  from { opacity:0; transform: scale(0.96) translateY(-6px); }
+  to   { opacity:1; transform: none; }
+}
+.d-icon { font-size: 26px; margin-bottom: 12px; }
+.dialog h2 { font-size: 17px; font-weight: 700; color: var(--text-1); margin-bottom: 5px; }
+.dialog p  { font-size: 13px; color: var(--text-2); margin-bottom: 18px; line-height: 1.6; }
+.dialog label { display: block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); margin-bottom: 5px; }
+.dialog input {
+  width: 100%; background: var(--bg3); border: 1px solid var(--border-hi);
+  border-radius: 5px; color: var(--text-1); font-size: 14px;
+  font-family: var(--font); padding: 8px 11px; outline: none; margin-bottom: 14px;
+  transition: border-color 150ms;
+}
+.dialog input:focus { border-color: var(--accent); }
+.dialog input::placeholder { color: var(--text-3); }
+.d-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
+.btn { padding: 7px 17px; border-radius: 5px; border: none; font-size: 13px; font-family: var(--font); font-weight: 500; cursor: pointer; transition: background 120ms; }
+.btn-primary { background: var(--accent); color: white; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-ghost { background: var(--bg4); color: var(--text-2); }
+.btn-ghost:hover { background: var(--bg3); color: var(--text-1); }
+
+/* Profile popover */
+#profile-pop {
+  position: fixed; z-index: 200; width: 268px;
+  background: var(--bg2); border: 1px solid var(--border-hi);
+  border-radius: 10px; overflow: hidden;
+  box-shadow: 0 16px 60px rgba(0,0,0,.8);
+  display: none; animation: pop 0.14s ease;
+}
+#profile-pop.open { display: block; }
+.pop-banner { height: 58px; }
+.pop-body { padding: 12px 14px 14px; }
+.pop-av-wrap { margin-top: -30px; margin-bottom: 9px; }
+.pop-av { width: 48px; height: 48px; border-radius: 50%; border: 3px solid var(--bg2); background: var(--bg3); overflow: hidden; }
+.pop-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pop-name  { font-size: 14.5px; font-weight: 700; color: var(--text-1); }
+.pop-handle { font-size: 11px; color: var(--text-3); font-family: var(--mono); margin-top: 1px; }
+.pop-divider { height: 1px; background: var(--border); margin: 10px 0; }
+.pop-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin-bottom: 3px; }
+.pop-bio { font-size: 13px; color: var(--text-2); line-height: 1.5; }
+
+/* Toast */
+#toast {
+  position: fixed; bottom: 22px; left: 50%;
+  transform: translateX(-50%) translateY(6px);
+  background: var(--bg3); border: 1px solid var(--border-hi);
+  border-radius: 7px; padding: 9px 16px;
+  font-size: 13px; color: var(--text-1);
+  box-shadow: 0 8px 30px rgba(0,0,0,.6);
+  opacity: 0; transition: opacity 0.18s, transform 0.18s;
+  pointer-events: none; z-index: 300;
+  display: flex; align-items: center; gap: 7px;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+
+</style>
+</head>
+<body>
+
+
+
+<div id="app">
+  <!-- ── Sidebar ── -->
+  <div id="sidebar">
+    <div id="ws-header">
+      <span class="ws-name" id="ws-name">Relay</span>
+      <div class="ws-led"></div>
+    </div>
+
+    <div id="sb-scroll">
+      <div class="sb-group">
+        <div class="sb-group-hd">
+          <span class="sb-group-label">Servers</span>
+          <div class="sb-group-actions">
+            <button class="sb-icon-btn" title="Create server" onclick="openDialog('create')">+</button>
+            <button class="sb-icon-btn" title="Join server" onclick="openDialog('join')" style="font-size:12px">↪</button>
+          </div>
+        </div>
+        <div id="server-list"></div>
+      </div>
+
+      <div class="sb-divider"></div>
+
+      <div class="sb-group">
+        <div class="sb-group-hd">
+          <span class="sb-group-label" id="ch-section-label">Channels</span>
+          <button class="sb-icon-btn" title="New channel" id="add-ch-btn" onclick="openDialog('channel')">+</button>
+        </div>
+        <div id="channel-list"></div>
+      </div>
+    </div>
+
+    <div id="user-panel" onclick="openDialog('profile')">
+      <div class="u-av">
+        <img id="my-avatar" src="" alt="">
+        <div class="u-dot"></div>
+      </div>
+      <div class="u-info">
+        <div class="u-name" id="my-display-name">—</div>
+        <div class="u-sub" id="my-username-sub">Online</div>
+      </div>
+      <button class="u-cfg" title="Edit profile" onclick="event.stopPropagation();openDialog('profile')">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Main ── -->
+  <div id="main">
+    <div id="topbar">
+      <span class="topbar-hash">#</span>
+      <span class="topbar-ch" id="topbar-ch">—</span>
+      <div class="topbar-sep"></div>
+      <span class="topbar-topic" id="topbar-topic">Select a channel to start chatting</span>
+      <div id="invite-chip" onclick="copyInvite()">
+        <div class="chip-led"></div>
+        <span id="invite-code-txt">—</span>
+      </div>
+    </div>
+
+    <div id="chat-area">
+      <div id="messages">
+        <div class="empty-state" id="empty-state">
+          <div class="es-icon">💬</div>
+          <h3>Pick a channel</h3>
+          <p>Select a channel from the sidebar to start chatting.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="input-section">
+      <div class="input-shell">
+        <textarea id="msg-input" placeholder="Message…" rows="1" disabled></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMsg()" disabled>
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Send
+        </button>
+      </div>
+      <div class="input-hint"><kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> for new line</div>
+    </div>
+  </div>
+</div>
+
+<!-- Profile pop -->
+<div id="profile-pop">
+  <div class="pop-banner" id="pop-banner"></div>
+  <div class="pop-body">
+    <div class="pop-av-wrap"><div class="pop-av"><img id="pop-av-img" src="" alt=""></div></div>
+    <div class="pop-name" id="pop-name"></div>
+    <div class="pop-handle" id="pop-handle"></div>
+    <div class="pop-divider"></div>
+    <div class="pop-lbl">About</div>
+    <div class="pop-bio" id="pop-bio">No bio yet.</div>
+  </div>
+</div>
+
+<!-- Dialog -->
+<div class="overlay" id="dialog-overlay">
+  <div class="dialog">
+    <div class="d-icon" id="d-icon">💬</div>
+    <h2 id="d-title"></h2>
+    <p id="d-desc"></p>
+    <label id="d-lbl1"></label>
+    <input type="text" id="d-inp1" placeholder="">
+    <div id="d-extra" style="display:none">
+      <label>USERNAME</label>
+      <div style="display:flex;align-items:center;background:var(--bg3);border:1px solid var(--border-hi);border-radius:5px;margin-bottom:14px;overflow:hidden;">
+        <span style="padding:8px 8px 8px 11px;color:var(--text-3);font-size:14px;font-family:var(--mono);flex-shrink:0;">@</span>
+        <input type="text" id="d-inp-username" placeholder="yourhandle" style="margin-bottom:0;border:none;border-radius:0;background:transparent;padding-left:2px;">
+      </div>
+      <label>BIO</label>
+      <input type="text" id="d-inp2" placeholder="Something about you...">
+    </div>
+    <div class="d-footer">
+      <button class="btn btn-ghost" id="d-cancel" onclick="closeDialog()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitDialog()">
+        <span id="d-confirm-txt">Confirm</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"><span id="toast-icon">✓</span><span id="toast-msg"></span></div>
+
+<script>
+// ── Firebase ──────────────────────────────────────────────────
+// ↓ Fill in your Firebase project config here
+const FIREBASE_CONFIG = {
+  apiKey:      "YOUR_API_KEY",
+  authDomain:  "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId:   "YOUR_PROJECT_ID"
+};
+
+let db = null;
+let FIREBASE_OK = false;
+
+if (typeof firebase !== 'undefined') {
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.database();
+    FIREBASE_OK = true;
+  } catch(e) {
+    console.warn('Firebase init failed:', e.message);
+  }
+} else {
+  console.log('Firebase SDK not loaded — open this file in a browser to enable real-time chat.');
+}
+
+// ── State ──────────────────────────────────────────────────────
+let uid       = localStorage.getItem('relay_uid') || rnd(10);
+let myName    = localStorage.getItem('relay_name')     || '';
+let myBio     = localStorage.getItem('relay_bio')      || '';
+let myUsername = localStorage.getItem('relay_username') || '';
+let myServers = JSON.parse(localStorage.getItem('relay_servers') || '[]');
+localStorage.setItem('relay_uid', uid);
+
+if (!myServers.find(s => s.code === 'GLOBAL'))
+  myServers.unshift({ code: 'GLOBAL', name: 'Global' });
+
+let curServer  = myServers[0];
+let curChannel = 'general';
+let activeRef  = null;
+let activeFn   = null;
+let lastUid    = null;
+let lastTs     = 0;
+let dMode      = '';
+let demoLocal  = [];
+let toastTimer = null;
+
+// ── Boot ───────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  if (!myName) { openDialog('onboard'); return; }
+  boot();
+});
+
+function boot() {
+  document.getElementById('my-avatar').src = av(uid);
+  document.getElementById('my-display-name').textContent = myName;
+  document.getElementById('my-username-sub').textContent = myUsername ? '@' + myUsername : 'Online';
+  renderServers();
+  selectServer(curServer);
+  if (FIREBASE_OK && myName) {
+    db.ref('relay_profiles/' + uid).set({ name: myName, bio: myBio, username: myUsername });
+    heartbeat();
+  }
+}
+
+// ── Avatar ──────────────────────────────────────────────────────
+function av(seed) {
+  // Generate avatar as inline SVG data URI — no external requests
+  const colors = ['#6366f1','#8b5cf6','#0ea5e9','#22c55e','#f59e0b','#ef4444','#ec4899','#14b8a6'];
+  const bg  = colors[Math.abs(hashStr(seed)) % colors.length];
+  const bg2 = colors[Math.abs(hashStr(seed + '2')) % colors.length];
+  const letter = (seed || '?')[0].toUpperCase();
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+    <defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${bg}"/>
+      <stop offset="100%" stop-color="${bg2}"/>
+    </linearGradient></defs>
+    <circle cx="20" cy="20" r="20" fill="url(#g)"/>
+    <text x="20" y="25" text-anchor="middle" font-family="system-ui,sans-serif" font-size="16" font-weight="700" fill="white">${letter}</text>
+  </svg>`;
+  return 'data:image/svg+xml;base64,' + btoa(svg);
+}
+
+function hashStr(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = Math.imul(31, h) + s.charCodeAt(i) | 0;
+  return h;
+}
+
+// ── Servers ─────────────────────────────────────────────────────
+function renderServers() {
+  const el = document.getElementById('server-list');
+  el.innerHTML = '';
+  myServers.forEach(s => {
+    const isOwned = s.owner === uid;
+    const isGlobal = s.code === 'GLOBAL';
+    const d = document.createElement('div');
+    d.className = 'nav-item' + (s.code === curServer?.code ? ' active' : '');
+    d.dataset.code = s.code;
+    d.style.paddingRight = '6px';
+    d.innerHTML = `
+      <span class="nav-prefix" style="font-size:11px">◈</span>
+      <span style="overflow:hidden;text-overflow:ellipsis;flex:1">${esc(s.name)}</span>
+      ${isOwned && !isGlobal ? `<button class="del-srv-btn" title="Delete server" onclick="event.stopPropagation();confirmDeleteServer('${s.code}')">×</button>` : ''}`;
+    d.onclick = () => selectServer(s);
+    el.appendChild(d);
+  });
+}
+
+function selectServer(s) {
+  curServer  = s;
+  curChannel = 'general';
+  document.querySelectorAll('#server-list .nav-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.code === s.code));
+  document.getElementById('ws-name').textContent = s.name;
+  document.getElementById('invite-code-txt').textContent = s.code;
+  document.getElementById('ch-section-label').textContent = s.name;
+  // Hide add-channel button on Global
+  document.getElementById('add-ch-btn').style.display = s.code === 'GLOBAL' ? 'none' : '';
+  renderChannels();
+  selectChannel('general');
+  if (FIREBASE_OK) heartbeat();
+}
+
+function confirmDeleteServer(code) {
+  const s = myServers.find(x => x.code === code);
+  if (!s) return;
+  if (!confirm(`Delete "${s.name}"? This will remove all channels and messages for everyone.`)) return;
+  deleteServer(code);
+}
+
+function deleteServer(code) {
+  // Wipe localStorage channels
+  localStorage.removeItem('relay_ch_' + code);
+  // Wipe from Firebase
+  if (FIREBASE_OK) {
+    db.ref(`relay/${code}`).remove();
+    db.ref(`relay_online/${code}`).remove();
+  }
+  // Remove from myServers
+  myServers = myServers.filter(s => s.code !== code);
+  localStorage.setItem('relay_servers', JSON.stringify(myServers));
+  // Fall back to Global
+  curServer = myServers.find(s => s.code === 'GLOBAL') || myServers[0];
+  renderServers();
+  selectServer(curServer);
+  toast('🗑', 'Server deleted');
+}
+
+function ownedServer() {
+  // The one server this user created (non-global, non-joined)
+  return myServers.find(s => s.owner === uid);
+}
+
+// ── Channels ────────────────────────────────────────────────────
+function getChannels() {
+  const key = 'relay_ch_' + curServer.code;
+  return JSON.parse(localStorage.getItem(key) || '["general","random","introductions"]');
+}
+function saveChannels(list) {
+  localStorage.setItem('relay_ch_' + curServer.code, JSON.stringify(list));
+}
+function renderChannels() {
+  const el = document.getElementById('channel-list');
+  el.innerHTML = '';
+  getChannels().forEach(ch => {
+    const d = document.createElement('div');
+    d.className = 'nav-item' + (ch === curChannel ? ' active' : '');
+    d.dataset.ch = ch;
+    d.innerHTML = `<span class="nav-prefix">#</span><span>${esc(ch)}</span>`;
+    d.onclick = () => selectChannel(ch);
+    el.appendChild(d);
+  });
+}
+
+// ── Messages ────────────────────────────────────────────────────
+function selectChannel(ch) {
+  curChannel = ch;
+
+  document.querySelectorAll('#channel-list .nav-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.ch === ch));
+  document.getElementById('topbar-ch').textContent   = ch;
+  document.getElementById('topbar-topic').textContent = `#${ch} — ${curServer.name}`;
+  document.getElementById('msg-input').placeholder    = `Message #${ch}`;
+  document.getElementById('msg-input').disabled       = false;
+  document.getElementById('send-btn').disabled        = false;
+
+  // Clear
+  const msgEl = document.getElementById('messages');
+  msgEl.innerHTML = '';
+  lastUid = null; lastTs = 0;
+
+  const es = document.getElementById('empty-state');
+  if (es) es.remove();
+
+  // Intro
+  msgEl.innerHTML = `
+    <div class="ch-intro">
+      <div class="ch-intro-badge">#</div>
+      <h2>#${esc(ch)}</h2>
+      <p>Start of <strong>#${esc(ch)}</strong> in <strong>${esc(curServer.name)}</strong>.</p>
+    </div>
+    <div class="date-pill">${fmtDate(Date.now())}</div>`;
+
+  // Detach old
+  if (activeRef && activeFn) { activeRef.off('child_added', activeFn); }
+  activeRef = null; activeFn = null;
+
+  if (FIREBASE_OK) {
+    activeRef = db.ref(`relay/${curServer.code}/${ch}`);
+    activeFn  = snap => addMsg(snap.val());
+    activeRef.limitToLast(100).on('child_added', activeFn);
+  } else {
+    demoLocal.forEach(m => addMsg(m));
+  }
+}
+
+function addMsg(m) {
+  if (!m?.text) return;
+  const msgEl = document.getElementById('messages');
+  const ts      = m.ts || Date.now();
+  const grouped = m.uid === lastUid && (ts - lastTs) < 300000;
+
+  const d = document.createElement('div');
+  d.className = 'msg-group' + (grouped ? '' : ' head');
+
+  if (grouped) {
+    d.innerHTML = `
+      <div class="msg-av-col"><div class="msg-ts-side">${fmtShort(ts)}</div></div>
+      <div class="msg-body"><div class="msg-text">${linkify(esc(m.text))}</div></div>`;
+  } else {
+    d.innerHTML = `
+      <div class="msg-av-col">
+        <div class="msg-av" onclick="showProfile(event,'${esc(m.uid)}')">
+          <img src="${av(m.uid)}" alt="" loading="lazy">
+        </div>
+      </div>
+      <div class="msg-body">
+        <div class="msg-meta">
+          <span class="msg-author" onclick="showProfile(event,'${esc(m.uid)}')">${esc(m.name)}</span>
+          <span class="msg-time">${fmtTime(ts)}</span>
+        </div>
+        <div class="msg-text">${linkify(esc(m.text))}</div>
+      </div>`;
+  }
+
+  msgEl.appendChild(d);
+  lastUid = m.uid; lastTs = ts;
+  const ca = document.getElementById('chat-area');
+  ca.scrollTop = ca.scrollHeight;
+}
+
+// ── Send ────────────────────────────────────────────────────────
+function sendMsg() {
+  const inp  = document.getElementById('msg-input');
+  const text = inp.value.trim();
+  if (!text) return;
+  const msg = { uid, name: myName, text, ts: Date.now() };
+  if (FIREBASE_OK) {
+    db.ref(`relay/${curServer.code}/${curChannel}`).push(msg);
+  } else {
+    demoLocal.push(msg);
+    addMsg(msg);
+  }
+  inp.value = ''; inp.style.height = ''; inp.focus();
+}
+
+document.getElementById('msg-input').addEventListener('input', function () {
+  this.style.height = '';
+  this.style.height = Math.min(this.scrollHeight, 160) + 'px';
+});
+document.getElementById('msg-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+});
+
+// ── Profile pop ─────────────────────────────────────────────────
+async function showProfile(evt, userId) {
+  evt.stopPropagation();
+  const pop = document.getElementById('profile-pop');
+  pop.classList.add('open');
+  const x = Math.min(evt.clientX + 14, window.innerWidth  - 290);
+  const y = Math.min(evt.clientY - 10, window.innerHeight - 260);
+  pop.style.left = x + 'px';
+  pop.style.top  = y + 'px';
+
+  document.getElementById('pop-av-img').src  = av(userId);
+  document.getElementById('pop-name').textContent   = '…';
+  document.getElementById('pop-handle').textContent = '';
+  document.getElementById('pop-bio').textContent    = '';
+
+  const grads = [
+    'linear-gradient(135deg,#6366f1,#8b5cf6)',
+    'linear-gradient(135deg,#0ea5e9,#6366f1)',
+    'linear-gradient(135deg,#22c55e,#0ea5e9)',
+    'linear-gradient(135deg,#f59e0b,#ef4444)',
+  ];
+  document.getElementById('pop-banner').style.background = grads[userId.charCodeAt(0) % grads.length];
+
+  if (FIREBASE_OK) {
+    const snap = await db.ref('relay_profiles/' + userId).get();
+    if (snap.exists()) {
+      const d = snap.val();
+      document.getElementById('pop-name').textContent   = d.name || userId;
+      document.getElementById('pop-handle').textContent = d.username ? '@' + d.username : '';
+      document.getElementById('pop-bio').textContent    = d.bio  || 'No bio yet.';
+    }
+  } else {
+    document.getElementById('pop-name').textContent   = userId === uid ? myName : 'Demo User';
+    document.getElementById('pop-handle').textContent = userId === uid && myUsername ? '@' + myUsername : '';
+  }
+}
+document.addEventListener('click', e => {
+  if (!document.getElementById('profile-pop').contains(e.target))
+    document.getElementById('profile-pop').classList.remove('open');
+});
+
+// ── Dialogs ─────────────────────────────────────────────────────
+const DIALOG_CONFIGS = {
+  onboard: { icon:'👋', title:'Welcome to Relay', desc:'Choose a display name to get started.', lbl:'DISPLAY NAME', ph:'Your name', confirm:"Let's go", extra:false, cancel:false },
+  create:  { icon:'🌐', title:'Create a server',  desc:'Create a shared space for your community.', lbl:'SERVER NAME', ph:'e.g. My Team', confirm:'Create', extra:false, cancel:true },
+  join:    { icon:'🔗', title:'Join a server',     desc:'Enter an invite code to join an existing server.', lbl:'INVITE CODE', ph:'e.g. ABC12', confirm:'Join', extra:false, cancel:true },
+  channel: { icon:'#',  title:'New channel',       desc:'Add a channel to ' + (curServer?.name||'this server') + '.', lbl:'CHANNEL NAME', ph:'e.g. announcements', confirm:'Create', extra:false, cancel:true },
+  profile: { icon:'✏️', title:'Edit profile',      desc:'Update how you appear to others.', lbl:'DISPLAY NAME', ph:'Your name', confirm:'Save', extra:true, cancel:true },
+};
+
+function openDialog(mode) {
+  dMode = mode;
+  const c = { ...DIALOG_CONFIGS[mode] };
+  if (mode === 'channel') c.desc = `Add a channel to ${curServer?.name || 'this server'}.`;
+
+  document.getElementById('d-icon').textContent       = c.icon;
+  document.getElementById('d-title').textContent      = c.title;
+  document.getElementById('d-desc').textContent       = c.desc;
+  document.getElementById('d-lbl1').textContent       = c.lbl;
+  document.getElementById('d-inp1').placeholder       = c.ph;
+  document.getElementById('d-inp1').value             = mode === 'profile' ? myName : '';
+  document.getElementById('d-confirm-txt').textContent = c.confirm;
+  document.getElementById('d-cancel').style.display   = c.cancel ? '' : 'none';
+  document.getElementById('d-extra').style.display    = c.extra  ? '' : 'none';
+  if (c.extra) {
+    document.getElementById('d-inp-username').value = myUsername;
+    document.getElementById('d-inp2').value = myBio;
+  }
+
+  document.getElementById('dialog-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('d-inp1').focus(), 60);
+}
+
+function closeDialog() {
+  if (dMode === 'onboard' && !myName) return;
+  document.getElementById('dialog-overlay').classList.remove('open');
+}
+
+function submitDialog() {
+  const v1 = document.getElementById('d-inp1').value.trim();
+  const v2 = document.getElementById('d-inp2').value.trim();
+  if (!v1) { document.getElementById('d-inp1').focus(); return; }
+
+  if (dMode === 'onboard') {
+    myName = v1;
+    localStorage.setItem('relay_name', myName);
+    closeDialog(); boot();
+  } else if (dMode === 'create') {
+    // Enforce one owned server at a time
+    if (ownedServer()) {
+      toast('⚠', `Delete "${ownedServer().name}" first before creating a new server`);
+      closeDialog(); return;
+    }
+    const code = rnd(5).toUpperCase();
+    const srv  = { code, name: v1, owner: uid };
+    myServers.push(srv);
+    localStorage.setItem('relay_servers', JSON.stringify(myServers));
+    renderServers(); selectServer(srv);
+    closeDialog(); toast('✓', `Server "${v1}" created`);
+  } else if (dMode === 'join') {
+    const code = v1.toUpperCase();
+    const existing = myServers.find(s => s.code === code);
+    if (existing) { selectServer(existing); closeDialog(); return; }
+    const srv = { code, name: 'Server ' + code };
+    myServers.push(srv);
+    localStorage.setItem('relay_servers', JSON.stringify(myServers));
+    renderServers(); selectServer(srv);
+    closeDialog(); toast('✓', `Joined server ${code}`);
+  } else if (dMode === 'channel') {
+    const name = v1.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+    const list = getChannels();
+    if (!list.includes(name)) { list.push(name); saveChannels(list); }
+    renderChannels(); selectChannel(name);
+    closeDialog();
+  } else if (dMode === 'profile') {
+    const v3 = document.getElementById('d-inp-username').value.trim().toLowerCase().replace(/[^a-z0-9_]/g,'');
+    myName = v1; myBio = v2; myUsername = v3;
+    localStorage.setItem('relay_name',     myName);
+    localStorage.setItem('relay_bio',      myBio);
+    localStorage.setItem('relay_username', myUsername);
+    document.getElementById('my-display-name').textContent = myName;
+    document.getElementById('my-username-sub').textContent = myUsername ? '@' + myUsername : 'Online';
+    if (FIREBASE_OK) db.ref('relay_profiles/' + uid).set({ name: myName, bio: myBio, username: myUsername });
+    closeDialog(); toast('✓', 'Profile updated');
+  }
+}
+
+['d-inp1','d-inp-username','d-inp2'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', e => {
+    if (e.key === 'Enter')  submitDialog();
+    if (e.key === 'Escape') closeDialog();
+  });
+});
+
+// ── Invite ───────────────────────────────────────────────────────
+function copyInvite() {
+  navigator.clipboard?.writeText(curServer.code).catch(()=>{});
+  toast('🔗', `Invite code "${curServer.code}" copied`);
+}
+
+// ── Heartbeat ────────────────────────────────────────────────────
+function heartbeat() {
+  if (!FIREBASE_OK || !myName) return;
+  const ref = db.ref(`relay_online/${curServer.code}/${uid}`);
+  ref.set({ name: myName, ts: Date.now() });
+  ref.onDisconnect().remove();
+}
+setInterval(() => { if (FIREBASE_OK) heartbeat(); }, 25000);
+
+// ── Toast ────────────────────────────────────────────────────────
+function toast(icon, msg) {
+  document.getElementById('toast-icon').textContent = icon;
+  document.getElementById('toast-msg').textContent  = msg;
+  const el = document.getElementById('toast');
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+function rnd(n) { return Math.random().toString(36).slice(2, 2+n); }
+function esc(s) { return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function linkify(s) { return s.replace(/(https?:\/\/[^\s<>"]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>'); }
+function fmtTime(ts) { return new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+function fmtShort(ts) { return new Date(ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}); }
+function fmtDate(ts) { return new Date(ts).toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'}); }
+</script>
+</body>
+</html>
