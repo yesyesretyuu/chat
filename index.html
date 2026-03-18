@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Discord Clone</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <style>
+        :root { --bg-side: #1e1f22; --bg-main: #313338; --blurple: #5865f2; }
+        body { margin: 0; font-family: sans-serif; background: var(--bg-main); color: white; display: flex; height: 100vh; overflow: hidden; }
+        
+        /* Sidebar */
+        #sidebar { width: 72px; background: var(--bg-side); display: flex; flex-direction: column; align-items: center; padding: 12px 0; flex-shrink: 0; gap: 8px; }
+        .circle { width: 48px; height: 48px; border-radius: 50%; background: #313338; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; border: none; color: white; transition: 0.2s; flex-shrink: 0; text-decoration: none; font-size: 14px; overflow: hidden; }
+        .circle:hover, .circle.active { border-radius: 30%; background: var(--blurple); }
+        .separator { width: 32px; height: 2px; background: #35363c; margin: 4px 0; }
+        
+        #my-pic { margin-top: auto; border: 2px solid #23a55a; }
+        #my-pic img { width: 100%; height: 100%; object-fit: cover; }
+
+        /* Main Chat */
+        #main { flex: 1; display: flex; flex-direction: column; }
+        #header { height: 48px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; background: var(--bg-main); border-bottom: 1px solid #26272d; font-weight: bold; }
+        #chat { flex: 1; overflow-y: auto; padding: 20px; }
+        #input-area { padding: 0 20px 24px; }
+        input { width: 100%; padding: 12px; background: #383a40; border: none; border-radius: 8px; color: white; outline: none; }
+
+        /* Messages */
+        .msg { display: flex; margin-bottom: 16px; }
+        .msg img { width: 40px; height: 40px; border-radius: 50%; margin-right: 15px; cursor: pointer; }
+        .msg-name { font-weight: bold; cursor: pointer; margin-right: 8px; }
+
+        /* Popout */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; }
+        .popout { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 300px; background: #111214; border-radius: 8px; overflow: hidden; text-align: center; }
+        .banner { height: 60px; background: var(--blurple); }
+        .popout-body { padding: 16px; position: relative; padding-top: 40px; }
+        .popout-avatar { width: 70px; height: 70px; border-radius: 50%; border: 5px solid #111214; position: absolute; top: -35px; left: 16px; background: #313338; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <button class="circle active" onclick="location.reload()">G</button>
+    <div class="separator"></div>
+    <div id="srv-icons"></div> <button class="circle" onclick="window.createSrv()" style="color: #23a55a;">+</button>
+    <button class="circle" onclick="window.joinSrv()">↪</button>
+    <div id="my-pic" class="circle" onclick="window.editProfile()">
+        <img id="my-avatar-img" src="">
+    </div>
+</div>
+
+<div id="main">
+    <div id="header">
+        <span id="htitle"># global-chat</span>
+        <span id="hcode" style="color:#23a55a; font-family:monospace"></span>
+    </div>
+    <div id="chat"></div>
+    <div id="input-area"><input id="min" placeholder="Message..."></div>
+</div>
+
+<div id="pmodal" class="modal">
+    <div class="popout">
+        <div class="banner"></div>
+        <div class="popout-body">
+            <img class="popout-avatar" id="pimg">
+            <h3 id="pname" style="margin:0"></h3>
+            <p id="pbio" style="color:#b5bac1; font-size:14px; margin-top:10px;"></p>
+            <button onclick="document.getElementById('pmodal').style.display='none'" style="width:100%; padding:10px; background: #4e5058; color:white; border:none; border-radius:4px; margin-top:10px; cursor:pointer">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "YOUR_KEY",
+        authDomain: "YOUR_PROJECT.firebaseapp.com",
+        databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+        projectId: "YOUR_PROJECT"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let uid = localStorage.getItem('chat_uid') || Math.random().toString(36).substring(2,10);
+    localStorage.setItem('chat_uid', uid);
+    let myName = localStorage.getItem('chat_name');
+    let currentRef = db.ref('servers/GLOBAL');
+    
+    // Server Tracking
+    let myServers = JSON.parse(localStorage.getItem('my_servers')) || [];
+
+    async function init() {
+        if(!myName) {
+            myName = prompt("Nickname:") || "User";
+            localStorage.setItem('chat_name', myName);
+            await db.ref('profiles/' + uid).set({ name: myName, bio: "Hey there!" });
+        }
+        document.getElementById('my-avatar-img').src = `https://api.dicebear.com/7.x/thumbs/svg?seed=${uid}`;
+        renderServerIcons();
+        listen();
+    }
+
+    window.createSrv = function() {
+        let n = prompt("Server Name:");
+        if(n) {
+            let c = Math.random().toString(36).substring(2,7).toUpperCase();
+            saveServer(c, n);
+            window.switchSrv(c, n);
+        }
+    };
+
+    window.joinSrv = function() {
+        let c = prompt("Enter Code:");
+        if(c) {
+            c = c.toUpperCase();
+            saveServer(c, "Server " + c);
+            window.switchSrv(c, "Server " + c);
+        }
+    };
+
+    function saveServer(code, name) {
+        if(!myServers.find(s => s.code === code)) {
+            myServers.push({ code, name });
+            localStorage.setItem('my_servers', JSON.stringify(myServers));
+            renderServerIcons();
+        }
+    }
+
+    function renderServerIcons() {
+        const container = document.getElementById('srv-icons');
+        container.innerHTML = '';
+        myServers.forEach(s => {
+            const btn = document.createElement('button');
+            btn.className = 'circle';
+            btn.innerText = s.name.substring(0, 2).toUpperCase();
+            btn.onclick = () => window.switchSrv(s.code, s.name);
+            container.appendChild(btn);
+        });
+    }
+
+    window.switchSrv = function(c, n) {
+        document.getElementById('htitle').innerText = "# " + n.toLowerCase().replace(/ /g, "-");
+        document.getElementById('hcode').innerText = "INVITE: " + c;
+        document.getElementById('chat').innerHTML = '';
+        currentRef.off();
+        currentRef = db.ref('servers/' + c);
+        listen();
+    };
+
+    window.viewProfile = async function(userId) {
+        const snap = await db.ref('profiles/' + userId).get();
+        if(snap.exists()) {
+            const d = snap.val();
+            document.getElementById('pname').innerText = d.name;
+            document.getElementById('pbio').innerText = d.bio;
+            document.getElementById('pimg').src = `https://api.dicebear.com/7.x/thumbs/svg?seed=${userId}`;
+            document.getElementById('pmodal').style.display = 'block';
+        }
+    };
+
+    window.editProfile = async function() {
+        let n = prompt("New Nickname:", myName);
+        let b = prompt("New Bio:");
+        if(n) {
+            await db.ref('profiles/' + uid).update({ name: n, bio: b });
+            myName = n;
+            localStorage.setItem('chat_name', n);
+        }
+    };
+
+    function listen() {
+        currentRef.on('child_added', snap => {
+            const m = snap.val();
+            const d = document.createElement('div');
+            d.className = 'msg';
+            d.innerHTML = `<img src="https://api.dicebear.com/7.x/thumbs/svg?seed=${m.uid}" onclick="window.viewProfile('${m.uid}')">
+                           <div><span class="msg-name" onclick="window.viewProfile('${m.uid}')">${m.name}</span>
+                           <div style="color:#dbdee1; margin-top:2px;">${m.text}</div></div>`;
+            document.getElementById('chat').appendChild(d);
+            document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
+        });
+    }
+
+    document.getElementById('min').onkeypress = (e) => {
+        if(e.key === 'Enter' && e.target.value.trim()) {
+            currentRef.push({ uid: uid, name: myName, text: e.target.value });
+            e.target.value = '';
+        }
+    };
+
+    init();
+</script>
+</body>
+</html>
