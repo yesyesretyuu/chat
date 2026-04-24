@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Global Chatroom</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #111;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    #usernameScreen, #chatScreen {
+      width: 90%;
+      max-width: 600px;
+    }
+
+    input, button {
+      padding: 10px;
+      font-size: 16px;
+      margin-top: 10px;
+      width: 100%;
+      border: none;
+      border-radius: 8px;
+    }
+
+    button {
+      background: gold;
+      cursor: pointer;
+    }
+
+    #chatBox {
+      height: 400px;
+      overflow-y: auto;
+      border: 1px solid #333;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 10px;
+      background: #000;
+    }
+
+    .message {
+      margin-bottom: 8px;
+    }
+
+    .username {
+      font-weight: bold;
+      color: gold;
+    }
+  </style>
+</head>
+<body>
+
+<div id="usernameScreen">
+  <h2>Enter Username</h2>
+  <input id="usernameInput" placeholder="Choose a username">
+  <button onclick="enterChat()">Join Chat</button>
+</div>
+
+<div id="chatScreen" style="display:none;">
+  <div id="chatBox"></div>
+  <input id="messageInput" placeholder="Type a message...">
+  <button onclick="sendMessage()">Send</button>
+</div>
+
+<script>
+  let username = "";
+
+  function enterChat() {
+    const input = document.getElementById("usernameInput").value.trim();
+    if (!input) {
+      alert("Please enter a username");
+      return;
+    }
+    username = input;
+    document.getElementById("usernameScreen").style.display = "none";
+    document.getElementById("chatScreen").style.display = "block";
+  }
+
+  function sendMessage() {
+    const msgInput = document.getElementById("messageInput");
+    const message = msgInput.value.trim();
+    if (!message) return;
+
+    addMessage(username, message);
+    msgInput.value = "";
+  }
+
+  function addMessage(user, text) {
+    const chatBox = document.getElementById("chatBox");
+    const div = document.createElement("div");
+    div.classList.add("message");
+    div.innerHTML = `<span class=\"username\">${user}:</span> ${text}`;
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+</script>
+
+</body>
+</html>
