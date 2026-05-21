@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Basketball — Career Mode</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Firebase compat SDK — loaded from multiple CDNs for reliability -->
+    <script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-app-compat.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-auth-compat.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-database-compat.min.js"></script>
+    <style>
+        :root {
+            --red: #ff3b3b;
+            --blue: #3b7eff;
+            --gold: #ffd23f;
+            --dark: #141414;
+            --mid: #1e1e1e;
+            --panel: #252525;
+            --border: #333;
+            --text: #e8e8e8;
+            --muted: #777;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--dark);
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* ── AUTH SCREEN ── */
+        #auth-screen {
+            position: fixed; inset: 0; z-index: 100;
+            background: var(--dark);
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .auth-card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 48px 44px;
+            width: 360px;
+            box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+        }
+
+        .auth-logo {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 42px;
+            letter-spacing: 3px;
+            text-align: center;
+            color: var(--gold);
+            margin-bottom: 4px;
+        }
+
+        .auth-sub {
+            text-align: center;
+            color: var(--muted);
+            font-size: 13px;
+            margin-bottom: 32px;
+            letter-spacing: 0.5px;
+        }
+
+        .auth-tabs {
+            display: flex;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 28px;
+        }
+
+        .auth-tab {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--muted);
+            padding: 10px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            letter-spacing: 0.5px;
+        }
+
+        .auth-tab.active {
+            background: var(--gold);
+            color: #111;
+        }
+
+        .field-group {
+            margin-bottom: 16px;
+        }
+
+        .field-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--muted);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .field-group input {
+            width: 100%;
+            background: var(--mid);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 14px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 14px;
+            color: var(--text);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .field-group input:focus {
+            border-color: var(--gold);
+        }
+
+        .auth-btn {
+            width: 100%;
+            margin-top: 8px;
+            padding: 13px;
+            background: var(--gold);
+            color: #111;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 20px;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        .auth-btn:hover { opacity: 0.9; }
+        .auth-btn:active { transform: scale(0.98); }
+
+        #auth-error {
+            color: var(--red);
+            font-size: 13px;
+            text-align: center;
+            margin-top: 12px;
+            min-height: 18px;
+        }
+
+        /* ── GAME HEADER ── */
+        #game-screen { display: none; flex-direction: column; align-items: center; width: 100%; }
+
+        #topbar {
+            width: 800px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 0 10px;
+        }
+
+        #topbar .brand {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 26px;
+            letter-spacing: 3px;
+            color: var(--gold);
+        }
+
+        #topbar .user-info {
+            display: flex; align-items: center; gap: 10px;
+        }
+
+        .avatar {
+            width: 34px; height: 34px; border-radius: 50%;
+            background: var(--gold);
+            display: flex; align-items: center; justify-content: center;
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 16px;
+            color: #111;
+        }
+
+        .username-display {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .logout-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .logout-btn:hover { border-color: var(--red); color: var(--red); }
+
+        /* ── SCOREBOARD ── */
+        #scoreboard {
+            width: 800px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .team-score {
+            display: flex; flex-direction: column; align-items: center; gap: 2px;
+        }
+
+        .team-label {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 13px;
+            letter-spacing: 2px;
+        }
+
+        .team-label.red { color: var(--red); }
+        .team-label.blue { color: var(--blue); }
+
+        .score-number {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 52px;
+            line-height: 1;
+        }
+
+        .career-pts {
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .center-panel { text-align: center; }
+
+        #timer {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 38px;
+            color: var(--gold);
+            letter-spacing: 4px;
+        }
+
+        .new-game-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 6px 18px;
+            border-radius: 6px;
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 16px;
+            letter-spacing: 1.5px;
+            cursor: pointer;
+            margin-top: 6px;
+            display: none;
+            transition: all 0.2s;
+        }
+
+        .new-game-btn.visible { display: inline-block; }
+        .new-game-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+        canvas {
+            background: #2a2a2a;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            cursor: crosshair;
+            display: block;
+        }
+
+        #controls-hint {
+            color: var(--muted);
+            font-size: 12px;
+            margin: 8px 0 16px;
+            letter-spacing: 0.3px;
+        }
+
+        /* ── LEADERBOARD ── */
+        #leaderboard {
+            width: 800px;
+            margin-bottom: 40px;
+        }
+
+        #leaderboard h2 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 22px;
+            letter-spacing: 3px;
+            color: var(--gold);
+            margin-bottom: 10px;
+        }
+
+        #lb-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        #lb-table th {
+            text-align: left;
+            padding: 8px 12px;
+            color: var(--muted);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        #lb-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #2a2a2a;
+        }
+
+        #lb-table tr.me td { color: var(--gold); }
+
+        .rank { color: var(--muted); font-size: 12px; }
+        .lb-name { font-weight: 600; }
+
+        /* ── FIREBASE SETUP WARNING ── */
+        #config-warn {
+            background: #2a1a00;
+            border: 1px solid #664400;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin-bottom: 14px;
+            font-size: 13px;
+            color: #ffa040;
+            width: 800px;
+            line-height: 1.6;
+        }
+
+        #config-warn code {
+            background: #1a1000;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        #config-warn.hidden { display: none; }
+
+        /* ── CHAT (now a modal) ── */
+        #chat-wrap { display: none; }
+
+
+        .chat-msg {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            max-width: 75%;
+        }
+
+        .chat-msg.mine { align-self: flex-end; align-items: flex-end; }
+        .chat-msg.theirs { align-self: flex-start; align-items: flex-start; }
+
+        .chat-meta {
+            font-size: 11px;
+            color: var(--muted);
+            padding: 0 4px;
+        }
+
+        .chat-bubble {
+            padding: 9px 13px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .chat-msg.mine .chat-bubble {
+            background: var(--gold);
+            color: #111;
+            border-bottom-right-radius: 4px;
+        }
+
+        .chat-msg.theirs .chat-bubble {
+            background: #2e2e2e;
+            color: var(--text);
+            border-bottom-left-radius: 4px;
+        }
+
+        /* #chat-input-row handled in modal css */
+
+        #chat-input {
+            flex: 1;
+            background: var(--mid);
+            border: none;
+            padding: 12px 16px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 14px;
+            color: var(--text);
+            outline: none;
+        }
+
+        #chat-input::placeholder { color: var(--muted); }
+
+        #chat-send {
+            background: var(--gold);
+            border: none;
+            padding: 0 20px;
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 18px;
+            letter-spacing: 1.5px;
+            color: #111;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        #chat-send:hover { opacity: 0.85; }
+
+        .chat-empty {
+            color: var(--muted);
+            font-size: 13px;
+            text-align: center;
+            margin: auto;
+        }
+
+        /* ── CARDS ── */
+        #cards-wrap {
+            width: 800px;
+            margin-bottom: 40px;
+        }
+        #cards-wrap h2 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 22px;
+            letter-spacing: 3px;
+            color: var(--gold);
+            margin-bottom: 4px;
+        }
+        .cards-sub {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 14px;
+        }
+        #pack-btn {
+            background: linear-gradient(135deg, #ffd23f, #ff8c00);
+            border: none;
+            border-radius: 10px;
+            padding: 12px 28px;
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 22px;
+            letter-spacing: 2px;
+            color: #111;
+            cursor: pointer;
+            margin-bottom: 20px;
+            transition: transform 0.15s, opacity 0.15s;
+            box-shadow: 0 4px 20px rgba(255,210,63,0.3);
+        }
+        #pack-btn:hover { transform: scale(1.04); }
+        #pack-btn:disabled { opacity: 0.4; cursor: default; transform: none; }
+        .pack-cost { font-size: 13px; color: #111; opacity: 0.7; display: block; margin-top: -2px; font-family: 'DM Sans', sans-serif; font-weight: 600; }
+        #cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 12px;
+        }
+        .player-card {
+            border-radius: 12px;
+            padding: 14px 10px 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            position: relative;
+            border: 2px solid transparent;
+            transition: transform 0.2s;
+            cursor: default;
+            user-select: none;
+        }
+        .player-card:hover { transform: translateY(-4px); }
+        .card-rarity-common   { background: linear-gradient(160deg,#2a2a2a,#1a1a1a); border-color: #444; }
+        .card-rarity-rare     { background: linear-gradient(160deg,#0d2a4a,#0a1a30); border-color: #3b7eff; }
+        .card-rarity-epic     { background: linear-gradient(160deg,#2a0a4a,#1a0530); border-color: #a64dff; }
+        .card-rarity-legend   { background: linear-gradient(160deg,#4a2a00,#2a1500); border-color: var(--gold); box-shadow: 0 0 16px rgba(255,210,63,0.35); }
+        .card-emoji { font-size: 36px; }
+        .card-name  { font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: 1px; text-align: center; line-height: 1.2; }
+        .card-stat  { font-size: 11px; color: var(--muted); text-align: center; }
+        .card-rarity-badge {
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            padding: 2px 7px;
+            border-radius: 20px;
+            margin-top: 2px;
+        }
+        .badge-common { background:#333; color:#aaa; }
+        .badge-rare   { background:#0d2a4a; color:#3b7eff; }
+        .badge-epic   { background:#2a0a4a; color:#c080ff; }
+        .badge-legend { background:#4a2a00; color:var(--gold); }
+        .card-count {
+            position: absolute; top: 8px; right: 10px;
+            font-size: 11px; color: var(--muted); font-weight: 600;
+        }
+        #pack-reveal {
+            position: fixed; inset: 0; z-index: 200;
+            background: rgba(0,0,0,0.88);
+            display: none; align-items: center; justify-content: center;
+            flex-direction: column; gap: 24px;
+        }
+        #pack-reveal.show { display: flex; }
+        #pack-reveal h3 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 32px; letter-spacing: 4px; color: var(--gold);
+        }
+        #reveal-cards { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+        .reveal-card {
+            border-radius: 14px; padding: 20px 16px 16px;
+            display: flex; flex-direction: column; align-items: center; gap: 8px;
+            min-width: 120px; border: 2px solid transparent;
+            animation: popIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
+        }
+        .reveal-card:nth-child(2) { animation-delay: 0.12s; }
+        .reveal-card:nth-child(3) { animation-delay: 0.24s; }
+        @keyframes popIn {
+            from { opacity:0; transform: scale(0.4) rotate(-8deg); }
+            to   { opacity:1; transform: scale(1) rotate(0deg); }
+        }
+        #pack-reveal .close-btn {
+            background: var(--gold); border: none; border-radius: 8px;
+            padding: 10px 32px; font-family: 'Bebas Neue', sans-serif;
+            font-size: 20px; letter-spacing: 2px; color: #111; cursor: pointer;
+        }
+        #coins-display {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 18px; color: var(--gold); letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+        .no-cards { color: var(--muted); font-size: 13px; }
+
+        /* ── CHAT MODAL ── */
+        .chat-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 16px;
+            letter-spacing: 1.5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .chat-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+        #chat-unread {
+            position: absolute;
+            top: -6px; right: -6px;
+            background: var(--red);
+            color: #fff;
+            font-size: 10px;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 700;
+            border-radius: 20px;
+            padding: 1px 5px;
+            display: none;
+        }
+        #chat-unread.show { display: block; }
+
+        #chat-modal-overlay {
+            position: fixed; inset: 0; z-index: 300;
+            background: rgba(0,0,0,0.6);
+            display: none; align-items: flex-end; justify-content: flex-end;
+            padding: 20px;
+        }
+        #chat-modal-overlay.show { display: flex; }
+
+        #chat-modal {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            width: 380px;
+            max-height: 520px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+            overflow: hidden;
+            animation: slideUp 0.25s cubic-bezier(0.34,1.4,0.64,1);
+        }
+        @keyframes slideUp {
+            from { opacity:0; transform: translateY(30px) scale(0.96); }
+            to   { opacity:1; transform: translateY(0) scale(1); }
+        }
+
+        #chat-modal-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 16px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        #chat-modal-header h3 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 20px; letter-spacing: 2px; color: var(--gold);
+        }
+        .chat-close-btn {
+            background: transparent; border: none;
+            color: var(--muted); font-size: 20px;
+            cursor: pointer; padding: 2px 6px; border-radius: 4px;
+            line-height: 1; transition: color 0.2s;
+        }
+        .chat-close-btn:hover { color: var(--text); }
+
+        #chat-box {
+            flex: 1;
+            overflow-y: auto;
+            padding: 14px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 300px;
+            max-height: 360px;
+            scroll-behavior: smooth;
+        }
+
+        #chat-input-row {
+            display: flex;
+            border-top: 1px solid var(--border);
+        }
+
+    </style>
+</head>
+<body>
+
+<!-- ══ AUTH SCREEN ══ -->
+<div id="auth-screen">
+    <div class="auth-card">
+        <div class="auth-logo">🏀 HOOPS</div>
+        <div class="auth-sub">Career Mode — Sign in to save your stats</div>
+
+        <div class="auth-tabs">
+            <button class="auth-tab active" id="tab-login" onclick="switchTab('login')">LOGIN</button>
+            <button class="auth-tab" id="tab-signup" onclick="switchTab('signup')">SIGN UP</button>
+        </div>
+
+        <div id="login-form">
+            <div class="field-group">
+                <label>Email</label>
+                <input type="email" id="login-email" placeholder="you@email.com" />
+            </div>
+            <div class="field-group">
+                <label>Password</label>
+                <input type="password" id="login-password" placeholder="••••••••" />
+            </div>
+            <button class="auth-btn" onclick="doLogin()">PLAY BALL</button>
+        </div>
+
+        <div id="signup-form" style="display:none">
+            <div class="field-group">
+                <label>Username</label>
+                <input type="text" id="signup-username" placeholder="CourtKing23" maxlength="20" />
+            </div>
+            <div class="field-group">
+                <label>Email</label>
+                <input type="email" id="signup-email" placeholder="you@email.com" />
+            </div>
+            <div class="field-group">
+                <label>Password</label>
+                <input type="password" id="signup-password" placeholder="Min 6 characters" />
+            </div>
+            <button class="auth-btn" onclick="doSignup()">CREATE ACCOUNT</button>
+        </div>
+
+        <div id="auth-error"></div>
+    </div>
+</div>
+
+<!-- ══ GAME SCREEN ══ -->
+<div id="game-screen">
+
+    <div id="config-warn">
+        ⚠️ <strong>Firebase not configured.</strong> Replace the placeholder config at the top of the &lt;script&gt; with your own Firebase project credentials. 
+        Get them from <code>console.firebase.google.com</code> → Project Settings → Your Apps. 
+        Auth (Email/Password) and Realtime Database must be enabled.
+    </div>
+
+    <div id="topbar">
+        <div class="brand">🏀 HOOPS</div>
+        <div class="user-info">
+            <div class="avatar" id="avatar-initial">?</div>
+            <span class="username-display" id="display-username">Player</span>
+            <button class="chat-btn" onclick="toggleChat()" title="Global Chat">💬 CHAT<span id="chat-unread"></span></button>
+            <button class="logout-btn" onclick="doLogout()">LOGOUT</button>
+        </div>
+    </div>
+
+    <div id="scoreboard">
+        <div class="team-score">
+            <div class="team-label red">RED</div>
+            <div class="score-number" style="color:var(--red)" id="sRed">0</div>
+            <div class="career-pts">Career: <span id="careerRed">0</span> pts</div>
+        </div>
+        <div class="center-panel">
+            <div id="timer">03:00</div>
+            <button class="new-game-btn" id="newGameBtn" onclick="startNewGame()">NEW GAME</button>
+        </div>
+        <div class="team-score">
+            <div class="team-label blue">BLUE</div>
+            <div class="score-number" style="color:var(--blue)" id="sBlue">0</div>
+            <div class="career-pts">Career: <span id="careerBlue">0</span> pts</div>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+
+    <div id="controls-hint">
+        WASD (Red) &nbsp;|&nbsp; Arrow Keys (Blue) &nbsp;|&nbsp; Space (Steal) &nbsp;|&nbsp; Double-tap W / ↑ (Shoot)
+    </div>
+
+    <div id="leaderboard">
+        <h2>🏆 All-Time Leaderboard</h2>
+        <table id="lb-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Player</th>
+                    <th>Red Points</th>
+                    <th>Blue Points</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody id="lb-body">
+                <tr><td colspan="5" style="color:var(--muted);padding:16px 12px">Loading leaderboard…</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+
+
+    <div id="cards-wrap">
+        <h2>🃏 Card Collection</h2>
+        <div class="cards-sub">Earn coins by scoring. Open packs to collect player cards.</div>
+        <div id="coins-display">🪙 0 coins</div>
+        <button id="pack-btn" onclick="openPack()">
+            OPEN PACK
+            <span class="pack-cost">100 coins · 3 cards</span>
+        </button>
+        <div id="cards-grid"><div class="no-cards">No cards yet — score some points to earn coins!</div></div>
+    </div>
+
+    <!-- Pack reveal overlay -->
+    <div id="pack-reveal">
+        <h3>✨ Pack Opened!</h3>
+        <div id="reveal-cards"></div>
+        <button class="close-btn" onclick="closeReveal()">ADD TO COLLECTION</button>
+    </div>
+
+    <!-- Chat modal overlay -->
+    <div id="chat-modal-overlay" onclick="closeChatOnBackdrop(event)">
+        <div id="chat-modal">
+            <div id="chat-modal-header">
+                <h3>💬 Global Chat</h3>
+                <button class="chat-close-btn" onclick="toggleChat()">✕</button>
+            </div>
+            <div id="chat-box">
+                <div class="chat-empty" id="chat-empty">No messages yet — say something!</div>
+            </div>
+            <div id="chat-input-row">
+                <input id="chat-input" type="text" placeholder="Type a message…" maxlength="200" />
+                <button id="chat-send" onclick="sendChat()">SEND</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ══ FIREBASE SDK ══ -->
+<script>
+const firebaseConfig = {
+    apiKey:            "AIzaSyB1R3pOac1jbg24OMNsdK0yPN8ot7O7_Rk",
+    authDomain:        "quakevault-2d285.firebaseapp.com",
+    databaseURL:       "https://quakevault-2d285-default-rtdb.firebaseio.com",
+    projectId:         "quakevault-2d285",
+    storageBucket:     "quakevault-2d285.firebasestorage.app",
+    messagingSenderId: "1098117266582",
+    appId:             "1:1098117266582:web:353cc1a6ade2a04d1616b7",
+    measurementId:     "G-8FC8FNSMM3"
+};
+
+const isConfigured = true;
+
+let _auth, _db, _fbFns = {};
+let currentUser = null;
+let careerData  = { red: 0, blue: 0 };
+
+// ── UI helpers — available immediately (no module scope issue) ──
+
+window.switchTab = (tab) => {
+    document.getElementById('login-form').style.display  = tab === 'login'  ? '' : 'none';
+    document.getElementById('signup-form').style.display = tab === 'signup' ? '' : 'none';
+    document.getElementById('tab-login').classList.toggle('active',  tab === 'login');
+    document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+    document.getElementById('auth-error').textContent = '';
+};
+
+function setAuthLoading(loading, btnText) {
+    const btns = document.querySelectorAll('.auth-btn');
+    btns.forEach(b => { b.disabled = loading; b.textContent = loading ? 'LOADING...' : btnText || b.dataset.label || b.textContent; });
+}
+
+window.doLogin = async () => {
+    if (!_auth || !_fbFns.signIn) { document.getElementById('auth-error').textContent = 'Still loading, try again in a second.'; return; }
+    const email = document.getElementById('login-email').value.trim();
+    const pass  = document.getElementById('login-password').value;
+    document.getElementById('auth-error').textContent = '';
+    setAuthLoading(true);
+    try {
+        await _fbFns.signIn(_auth, email, pass);
+    } catch (e) {
+        document.getElementById('auth-error').textContent = friendlyError(e.code);
+        setAuthLoading(false);
+    }
+};
+
+window.doSignup = async () => {
+    if (!_auth || !_fbFns.createUser) { document.getElementById('auth-error').textContent = 'Still loading, try again in a second.'; return; }
+    const username = document.getElementById('signup-username').value.trim();
+    const email    = document.getElementById('signup-email').value.trim();
+    const pass     = document.getElementById('signup-password').value;
+    document.getElementById('auth-error').textContent = '';
+    if (!username) { document.getElementById('auth-error').textContent = 'Username is required.'; return; }
+    if (!email)    { document.getElementById('auth-error').textContent = 'Email is required.'; return; }
+    if (pass.length < 6) { document.getElementById('auth-error').textContent = 'Password must be at least 6 characters.'; return; }
+    setAuthLoading(true);
+    try {
+        const cred = await _fbFns.createUser(_auth, email, pass);
+        await _fbFns.set(_fbFns.ref(_db, `users/${cred.user.uid}`), {
+            username, email, careerRed: 0, careerBlue: 0, createdAt: Date.now()
+        });
+        // onAuthStateChanged will handle showing the game
+    } catch (e) {
+        document.getElementById('auth-error').textContent = friendlyError(e.code);
+        setAuthLoading(false);
+    }
+};
+
+window.doLogout = async () => {
+    if (!isConfigured) { location.reload(); return; }
+    await _auth.signOut();
+    location.reload();
+};
+
+window.addCareerPoints = async (team, amount = 1) => {
+    careerData[team] += amount;
+    document.getElementById(team === 'red' ? 'careerRed' : 'careerBlue').textContent = careerData[team];
+    if (typeof window.awardCoins === 'function') window.awardCoins(10); // 10 coins per basket
+    if (isConfigured && currentUser) {
+        const field = team === 'red' ? 'careerRed' : 'careerBlue';
+        await _fbFns.update(_fbFns.ref(_db, `users/${currentUser.uid}`), { [field]: careerData[team] });
+    }
+};
+
+function showGame(username) {
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('game-screen').style.display  = 'flex';
+    document.getElementById('display-username').textContent = username;
+    document.getElementById('avatar-initial').textContent   = username[0].toUpperCase();
+    document.getElementById('careerRed').textContent  = careerData.red;
+    document.getElementById('careerBlue').textContent = careerData.blue;
+}
+
+function enterDemoMode() {
+    careerData = { red: 0, blue: 0 };
+    showGame('Demo Player');
+    document.getElementById('lb-body').innerHTML = '<tr><td colspan="5" style="color:var(--muted);padding:16px 12px">Connect Firebase to see leaderboard.</td></tr>';
+}
+
+function refreshLeaderboard() {
+    if (!isConfigured || !_db) return;
+    const tbody = document.getElementById('lb-body');
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);padding:16px 12px">Loading…</td></tr>';
+
+    // on('value') fires immediately and on every future change — true real-time
+    _db.ref('users').on('value', (snap) => {
+        try {
+            const rows = [];
+            snap.forEach(child => {
+                const d = child.val();
+                rows.push({ uid: child.key, username: d.username || 'Player', red: d.careerRed || 0, blue: d.careerBlue || 0, total: (d.careerRed||0)+(d.careerBlue||0) });
+            });
+            rows.sort((a, b) => b.total - a.total);
+
+            tbody.innerHTML = rows.slice(0, 20).map((r, i) => `
+                <tr class="${r.uid === currentUser?.uid ? 'me' : ''}">
+                    <td class="rank">${['🥇','🥈','🥉'][i] || (i+1)}</td>
+                    <td class="lb-name">${r.uid === currentUser?.uid ? '⭐ ' : ''}${escHtml(r.username)}</td>
+                    <td style="color:var(--red)">${r.red}</td>
+                    <td style="color:var(--blue)">${r.blue}</td>
+                    <td style="font-weight:600">${r.total}</td>
+                </tr>
+            `).join('') || '<tr><td colspan="5" style="color:var(--muted);padding:16px 12px">No players yet.</td></tr>';
+        } catch(e) {
+            tbody.innerHTML = `<tr><td colspan="5" style="color:#f87;padding:16px 12px">⚠️ Could not load leaderboard: ${e.message}</td></tr>`;
+            console.error('Leaderboard error:', e);
+        }
+    }, (e) => {
+        tbody.innerHTML = `<tr><td colspan="5" style="color:#f87;padding:16px 12px">⚠️ Permission denied — check Firebase rules.</td></tr>`;
+        console.error('Leaderboard permission error:', e);
+    });
+}
+
+function friendlyError(code) {
+    const map = {
+        'auth/user-not-found':     'No account with that email.',
+        'auth/wrong-password':     'Incorrect password.',
+        'auth/email-already-in-use': 'Email already registered.',
+        'auth/weak-password':      'Password must be at least 6 characters.',
+        'auth/invalid-email':      'Invalid email address.',
+        'auth/too-many-requests':  'Too many attempts — try again later.',
+    };
+    return map[code] || 'Something went wrong. Try again.';
+}
+
+function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Init Firebase using compat SDK (loaded via <script> tags, no dynamic imports) ──
+function initFirebase() {
+    if (typeof firebase === 'undefined') {
+        const err = '⚠️ Firebase SDK failed to load. This game must be opened via a local server, not file://. ' +
+                    'Double-click "launch_server.bat" (Windows) or "launch_server.command" (Mac) included in the download.';
+        document.getElementById('auth-error').textContent = err;
+        console.error(err);
+        return;
+    }
+    try {
+        const app = firebase.initializeApp(firebaseConfig);
+        _auth = firebase.auth();
+        _db   = firebase.database();
+
+        // Wrap compat SDK methods to match the modular API shape used by doLogin/doSignup etc.
+        _fbFns = {
+            signIn:     (auth, email, pass) => auth.signInWithEmailAndPassword(email, pass),
+            createUser: (auth, email, pass) => auth.createUserWithEmailAndPassword(email, pass),
+            signOut:    (auth)              => auth.signOut(),
+            ref:        (db, path)          => db.ref(path),
+            set:        (ref, data)         => ref.set(data),
+            get:        (ref)               => ref.once('value'),
+            update:     (ref, data)         => ref.update(data),
+        };
+
+        document.getElementById('config-warn').classList.add('hidden');
+
+        _auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                currentUser = user;
+                const snap = await _db.ref(`users/${user.uid}`).once('value');
+                const profile = snap.val() || {};
+                careerData.red  = profile.careerRed  || 0;
+                careerData.blue = profile.careerBlue || 0;
+                showGame(profile.username || user.email.split('@')[0]);
+                refreshLeaderboard();
+                initChat();
+                initCards(profile);
+            } else {
+                document.getElementById('auth-screen').style.display = 'flex';
+                document.getElementById('game-screen').style.display  = 'none';
+            }
+        });
+    } catch(e) {
+        console.error("Firebase init failed:", e);
+        document.getElementById('auth-error').textContent = 'Firebase failed to load. Check your config.';
+    }
+}
+
+initFirebase();
+</script>
+
+<!-- ══ GAME LOGIC ══ -->
+<script>
+
+
+// ── CARD SYSTEM ──
+const PACK_COST = 100;
+
+const ALL_CARDS = [
+    // Common
+    { id:'c1',  name:'Street Baller',  emoji:'🏃', rarity:'common', stat:'Speed +1'      },
+    { id:'c2',  name:'Court Rookie',   emoji:'🧢', rarity:'common', stat:'Stamina +1'    },
+    { id:'c3',  name:'Park Hooper',    emoji:'👟', rarity:'common', stat:'Dribble +1'    },
+    { id:'c4',  name:'Bench Warmer',   emoji:'🪑', rarity:'common', stat:'Defense +1'    },
+    { id:'c5',  name:'Shot Clock',     emoji:'⏱️', rarity:'common', stat:'Focus +1'      },
+    // Rare
+    { id:'r1',  name:'Slam King',      emoji:'👑', rarity:'rare',   stat:'Dunk +3'       },
+    { id:'r2',  name:'Fast Break',     emoji:'⚡', rarity:'rare',   stat:'Speed +3'      },
+    { id:'r3',  name:'Arc Shooter',    emoji:'🎯', rarity:'rare',   stat:'3PT +3'        },
+    { id:'r4',  name:'Iron Defense',   emoji:'🛡️', rarity:'rare',   stat:'Block +3'      },
+    { id:'r5',  name:'Point Guard',    emoji:'🧠', rarity:'rare',   stat:'Vision +3'     },
+    // Epic
+    { id:'e1',  name:'Crossover King', emoji:'🔥', rarity:'epic',   stat:'Handles +6'    },
+    { id:'e2',  name:'Paint Monster',  emoji:'💪', rarity:'epic',   stat:'Post +6'       },
+    { id:'e3',  name:'Clutch Gene',    emoji:'🎯', rarity:'epic',   stat:'Clutch +6'     },
+    // Legend
+    { id:'l1',  name:'The GOAT',       emoji:'🐐', rarity:'legend', stat:'All Stats +10' },
+    { id:'l2',  name:'Hoop God',       emoji:'🏆', rarity:'legend', stat:'God Mode +10'  },
+    { id:'l3',  name:'Court Legend',   emoji:'💎', rarity:'legend', stat:'Legacy +10'    },
+];
+
+const RARITY_WEIGHTS = { common: 60, rare: 28, epic: 10, legend: 2 };
+
+let userCoins = 0;
+let userCards = {}; // { cardId: count }
+let pendingRevealCards = [];
+
+function pickRandomCard() {
+    const roll = Math.random() * 100;
+    let rarity;
+    if      (roll < 2)  rarity = 'legend';
+    else if (roll < 12) rarity = 'epic';
+    else if (roll < 40) rarity = 'rare';
+    else                rarity = 'common';
+    const pool = ALL_CARDS.filter(c => c.rarity === rarity);
+    return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function updateCoinsUI() {
+    document.getElementById('coins-display').textContent = `🪙 ${userCoins} coins`;
+    const btn = document.getElementById('pack-btn');
+    btn.disabled = userCoins < PACK_COST;
+}
+
+function renderCollection() {
+    const grid = document.getElementById('cards-grid');
+    const owned = ALL_CARDS.filter(c => userCards[c.id]);
+    if (!owned.length) {
+        grid.innerHTML = '<div class="no-cards">No cards yet — score some points to earn coins!</div>';
+        return;
+    }
+    const order = { legend:0, epic:1, rare:2, common:3 };
+    owned.sort((a,b) => order[a.rarity] - order[b.rarity]);
+    grid.innerHTML = owned.map(c => `
+        <div class="player-card card-rarity-${c.rarity}">
+            <span class="card-count">x${userCards[c.id]}</span>
+            <div class="card-emoji">${c.emoji}</div>
+            <div class="card-name">${c.name}</div>
+            <div class="card-stat">${c.stat}</div>
+            <span class="card-rarity-badge badge-${c.rarity}">${c.rarity}</span>
+        </div>
+    `).join('');
+}
+
+function cardRevealHTML(c) {
+    return `
+        <div class="reveal-card card-rarity-${c.rarity}">
+            <div style="font-size:44px">${c.emoji}</div>
+            <div class="card-name" style="font-size:16px">${c.name}</div>
+            <div class="card-stat">${c.stat}</div>
+            <span class="card-rarity-badge badge-${c.rarity}">${c.rarity}</span>
+        </div>
+    `;
+}
+
+window.openPack = async () => {
+    if (userCoins < PACK_COST) return;
+    userCoins -= PACK_COST;
+    pendingRevealCards = [pickRandomCard(), pickRandomCard(), pickRandomCard()];
+
+    // Show reveal overlay
+    document.getElementById('reveal-cards').innerHTML = pendingRevealCards.map(cardRevealHTML).join('');
+    document.getElementById('pack-reveal').classList.add('show');
+
+    updateCoinsUI();
+    if (isConfigured && currentUser) {
+        await _db.ref(`users/${currentUser.uid}`).update({ coins: userCoins });
+    }
+};
+
+window.closeReveal = async () => {
+    document.getElementById('pack-reveal').classList.remove('show');
+    // Add cards to collection
+    pendingRevealCards.forEach(c => {
+        userCards[c.id] = (userCards[c.id] || 0) + 1;
+    });
+    pendingRevealCards = [];
+    renderCollection();
+    if (isConfigured && currentUser) {
+        await _db.ref(`users/${currentUser.uid}`).update({ cards: userCards });
+    }
+};
+
+// Award coins on score (called from game logic)
+window.awardCoins = async (amount) => {
+    userCoins += amount;
+    updateCoinsUI();
+    if (isConfigured && currentUser) {
+        await _db.ref(`users/${currentUser.uid}`).update({ coins: userCoins });
+    }
+};
+
+function initCards(profile) {
+    userCoins = profile.coins  || 0;
+    userCards = profile.cards  || {};
+    updateCoinsUI();
+    renderCollection();
+}
+
+
+// ── CHAT ──
+let chatOpen = false;
+let unreadCount = 0;
+let chatInitialized = false;
+
+window.toggleChat = () => {
+    chatOpen = !chatOpen;
+    document.getElementById('chat-modal-overlay').classList.toggle('show', chatOpen);
+    if (chatOpen) {
+        unreadCount = 0;
+        const badge = document.getElementById('chat-unread');
+        badge.classList.remove('show');
+        badge.textContent = '';
+        // Scroll to bottom when opening
+        const box = document.getElementById('chat-box');
+        setTimeout(() => box.scrollTop = box.scrollHeight, 50);
+        // Focus input
+        setTimeout(() => document.getElementById('chat-input').focus(), 100);
+    }
+};
+
+window.closeChatOnBackdrop = (e) => {
+    if (e.target.id === 'chat-modal-overlay') toggleChat();
+};
+
+function initChat() {
+    if (!_db || chatInitialized) return;
+    chatInitialized = true;
+    const chatRef = _db.ref('chat').limitToLast(80);
+    chatRef.on('child_added', (snap) => {
+        const msg = snap.val();
+        if (!msg) return;
+        appendChatMessage(msg);
+        // Show unread badge if chat is closed and msg is from someone else
+        if (!chatOpen && currentUser && msg.uid !== currentUser.uid) {
+            unreadCount++;
+            const badge = document.getElementById('chat-unread');
+            badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+            badge.classList.add('show');
+        }
+    });
+}
+
+function appendChatMessage(msg) {
+    const box = document.getElementById('chat-box');
+    const empty = document.getElementById('chat-empty');
+    if (empty) empty.remove();
+
+    const isMine = currentUser && msg.uid === currentUser.uid;
+    const time = new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const div = document.createElement('div');
+    div.className = 'chat-msg ' + (isMine ? 'mine' : 'theirs');
+    div.innerHTML = `
+        <div class="chat-meta">${escHtml(msg.username)} · ${time}</div>
+        <div class="chat-bubble">${escHtml(msg.text)}</div>
+    `;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+}
+
+window.sendChat = () => {
+    const input = document.getElementById('chat-input');
+    const text = input.value.trim();
+    if (!text || !_db || !currentUser) return;
+
+    const username = document.getElementById('display-username').textContent;
+    _db.ref('chat').push({
+        uid:      currentUser.uid,
+        username: username,
+        text:     text,
+        ts:       Date.now()
+    });
+
+    input.value = '';
+};
+
+// Send on Enter key
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('chat-input');
+    if (input) {
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter')  { e.preventDefault(); window.sendChat(); }
+            if (e.key === 'Escape') { if (chatOpen) toggleChat(); }
+        });
+    }
+});
+
+
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+
+const gravity = 0.5;
+const keys    = {};
+let lastW = 0, lastUp = 0;
+let shooter = null, shotLock = 0, stealCooldown = 0;
+
+const hoop = { x: 720, y: 200, w: 50, h: 8 };
+
+const ball = { x: 400, y: 200, dx: 0, dy: 0, radius: 11, carrier: null, isPerfect: false };
+
+let sessionScores = { red: 0, blue: 0 };
+let timeLeft = 180, gameOver = false;
+let timerInterval = null;
+
+class Player {
+    constructor(id, x, y, color) {
+        this.id = id; this.x = x; this.y = y;
+        this.w = 30; this.h = 55; this.color = color;
+        this.dx = 0; this.dy = 0; this.speed = 6; this.jump = -12;
+        this.grounded = false; this.facing = 1; this.dribbleY = 0;
+    }
+
+    update() {
+        if (keys[this.id === 'red' ? 'KeyA' : 'ArrowLeft'])       { this.dx = -this.speed; this.facing = -1; }
+        else if (keys[this.id === 'red' ? 'KeyD' : 'ArrowRight']) { this.dx = this.speed;  this.facing =  1; }
+        else { this.dx = 0; }
+
+        if (keys[this.id === 'red' ? 'KeyW' : 'ArrowUp'] && this.grounded) {
+            this.dy = this.jump; this.grounded = false;
+        }
+
+        this.dy += gravity;
+        this.x += this.dx;
+        this.y += this.dy;
+
+        if (this.y > canvas.height - this.h) { this.y = canvas.height - this.h; this.dy = 0; this.grounded = true; }
+        this.x = Math.max(0, Math.min(canvas.width - this.w, this.x));
+
+        if (ball.carrier === this) {
+            this.dribbleY = Math.abs(Math.sin(Date.now() * 0.01)) * 15;
+            ball.x = this.x + (this.facing === 1 ? this.w + 5 : -5);
+            ball.y = this.y + 20 + this.dribbleY;
+
+            if (ball.x > hoop.x && ball.x < hoop.x + hoop.w &&
+                ball.y > hoop.y - 10 && ball.y < hoop.y + 20) {
+                handleScore(this.id);
+            }
+        }
+    }
+
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, this.w, this.h);
+        ctx.fillStyle = "white";
+        ctx.fillRect(this.x + (this.facing === 1 ? 20 : 5), this.y + 10, 5, 5);
+    }
+}
+
+const p1 = new Player('red',  100, 300, '#ff3b3b');
+const p2 = new Player('blue', 600, 300, '#3b7eff');
+
+window.addEventListener('keydown', (e) => {
+    const now = Date.now();
+    if (e.code === 'KeyW')     { if (now - lastW  < 250 && ball.carrier === p1) shoot(p1); lastW  = now; }
+    if (e.code === 'ArrowUp')  { if (now - lastUp < 250 && ball.carrier === p2) shoot(p2); lastUp = now; }
+    if (e.code === 'Space' && now > stealCooldown) steal();
+    // Prevent arrow keys from scrolling page
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+    keys[e.code] = true;
+});
+
+window.addEventListener('keyup', (e) => keys[e.code] = false);
+
+function shoot(p) {
+    ball.carrier = null; shooter = p; shotLock = Date.now() + 400;
+    const tx = hoop.x + hoop.w / 2, ty = hoop.y, time = 40;
+    ball.dx = (tx - ball.x) / time;
+    ball.dy = (ty - ball.y - 0.5 * gravity * time * time) / time;
+    ball.isPerfect = Math.random() < 0.8;
+    if (!ball.isPerfect) { ball.dx += (Math.random() - 0.5) * 4; ball.dy -= 2; }
+}
+
+function steal() {
+    if (!ball.carrier) return;
+    const holder = ball.carrier, taker = holder === p1 ? p2 : p1;
+    if (Math.hypot(p1.x - p2.x, p1.y - p2.y) < 70) {
+        ball.carrier = taker; stealCooldown = Date.now() + 500;
+    }
+}
+
+function handleScore(team) {
+    sessionScores[team]++;
+    document.getElementById('sRed').textContent  = sessionScores.red;
+    document.getElementById('sBlue').textContent = sessionScores.blue;
+
+    // Delegate to Firebase module
+    if (typeof window.addCareerPoints === 'function') {
+        window.addCareerPoints(team, 1);
+    }
+
+    resetBall();
+}
+
+function resetBall() {
+    ball.carrier = null; ball.x = 400; ball.y = 100;
+    ball.dx = 0; ball.dy = 0; ball.isPerfect = false; shooter = null;
+}
+
+window.startNewGame = () => {
+    sessionScores = { red: 0, blue: 0 };
+    timeLeft = 180; gameOver = false;
+    document.getElementById('sRed').textContent  = 0;
+    document.getElementById('sBlue').textContent = 0;
+    document.getElementById('timer').textContent = '03:00';
+    document.getElementById('newGameBtn').classList.remove('visible');
+    resetBall();
+    p1.x = 100; p1.y = 300; p2.x = 600; p2.y = 300;
+    clearInterval(timerInterval);
+    startTimer();
+};
+
+function startTimer() {
+    timerInterval = setInterval(() => {
+        if (timeLeft > 0) {
+            timeLeft--;
+            const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
+            document.getElementById('timer').textContent = `${m}:${s < 10 ? '0' : ''}${s}`;
+        } else {
+            gameOver = true;
+            clearInterval(timerInterval);
+            document.getElementById('newGameBtn').classList.add('visible');
+        }
+    }, 1000);
+}
+
+function update() {
+    if (gameOver) return;
+    p1.update(); p2.update();
+
+    if (!ball.carrier) {
+        ball.dy += gravity; ball.x += ball.dx; ball.y += ball.dy;
+
+        if (ball.y > canvas.height - ball.radius) {
+            ball.y = canvas.height - ball.radius;
+            ball.dy *= -0.5; ball.isPerfect = false;
+        }
+        if (ball.x < 0 || ball.x > canvas.width) ball.dx *= -0.8;
+
+        [p1, p2].forEach(p => {
+            if (p === shooter && Date.now() < shotLock) return;
+            if (Math.hypot(p.x + p.w/2 - ball.x, p.y + p.h/2 - ball.y) < 35) {
+                ball.dx = p.dx * 1.2; ball.dy = p.dy - 2;
+                ball.isPerfect = false; shooter = null;
+            }
+        });
+
+        if (ball.dy > 0 && ball.x > hoop.x && ball.x < hoop.x + hoop.w &&
+            ball.y > hoop.y && ball.y < hoop.y + 15) {
+            handleScore(shooter ? shooter.id : (ball.x < 400 ? 'red' : 'blue'));
+        }
+
+        if (Date.now() > shotLock) {
+            [p1, p2].forEach(p => {
+                if (Math.hypot(p.x + p.w/2 - ball.x, p.y + p.h/2 - ball.y) < 35) ball.carrier = p;
+            });
+        }
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Court lines
+    ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(400, 0); ctx.lineTo(400, 400); ctx.stroke();
+
+    // Hoop
+    ctx.fillStyle = '#ff8c00';
+    ctx.fillRect(hoop.x, hoop.y, hoop.w, hoop.h);
+    // Backboard
+    ctx.fillStyle = '#888';
+    ctx.fillRect(hoop.x + hoop.w, hoop.y - 60, 6, 110);
+    // Net (simple lines)
+    ctx.strokeStyle = '#aaa'; ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+        ctx.beginPath();
+        ctx.moveTo(hoop.x + i * (hoop.w/4), hoop.y + hoop.h);
+        ctx.lineTo(hoop.x + hoop.w/2 + (i - 2) * 3, hoop.y + hoop.h + 22);
+        ctx.stroke();
+    }
+
+    p1.draw(); p2.draw();
+
+    ctx.fillStyle = ball.isPerfect ? '#ffd23f' : '#f07020';
+    ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    if (gameOver) {
+        ctx.fillStyle = 'rgba(0,0,0,0.78)';
+        ctx.fillRect(0, 0, 800, 400);
+        ctx.fillStyle = '#ffd23f';
+        ctx.font = "bold 48px 'Bebas Neue', sans-serif";
+        ctx.textAlign = 'center';
+        ctx.fillText('GAME OVER', 400, 180);
+        ctx.fillStyle = '#e8e8e8';
+        ctx.font = "22px 'Bebas Neue', sans-serif";
+        ctx.fillText(`RED  ${sessionScores.red}  —  BLUE  ${sessionScores.blue}`, 400, 230);
+        ctx.font = "16px 'DM Sans', sans-serif";
+        ctx.fillStyle = '#777';
+        ctx.fillText('Career points saved  ✓', 400, 265);
+    }
+}
+
+function loop() { update(); draw(); requestAnimationFrame(loop); }
+
+// Start timer + game loop once DOM is ready
+startTimer();
+loop();
+</script>
+</body>
+</html>
