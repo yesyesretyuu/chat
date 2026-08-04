@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roblox RAP RNG - Cloud Save</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;700;900&display=swap');
+
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: 'Poppins', sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+        }
+
+        #game-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #1e1e1e;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        h1 { margin-top: 0; color: #ffeb3b; }
+        
+        #loading-status { color: #aaaaaa; font-size: 14px; margin-bottom: 20px; }
+        #cloud-status { color: #4caf50; font-size: 12px; margin-top: 10px; font-weight: bold; }
+
+        .btn {
+            background: #4caf50;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px;
+            transition: 0.2s;
+        }
+
+        .btn:hover { background: #45a049; transform: scale(1.05); }
+        .btn:disabled { background: #555; cursor: not-allowed; transform: none; }
+        .btn-inv { background: #2196f3; }
+        .btn-inv:hover { background: #1e88e5; }
+        .btn-cloud { background: #ff9800; padding: 10px 20px; font-size: 14px; }
+        .btn-cloud:hover { background: #e68a00; }
+
+        #roll-display {
+            min-height: 300px;
+            margin: 20px 0;
+            padding: 20px;
+            background: #2a2a2a;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #item-image {
+            width: 150px;
+            height: 150px;
+            object-fit: contain;
+            display: none;
+            margin-bottom: 15px;
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        #item-name { font-size: 24px; font-weight: 900; margin: 10px 0; }
+        #item-rarity { font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; }
+
+        #inventory-container {
+            display: none;
+            text-align: left;
+            margin-top: 20px;
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .inv-item { padding: 8px; border-bottom: 1px solid #444; display: flex; justify-content: space-between; }
+
+        /* Rarity Colors */
+        .color-Common { color: #b0bec5; }
+        .color-Uncommon { color: #81c784; }
+        .color-Rare { color: #64b5f6; }
+        .color-Epic { color: #ba68c8; }
+        .color-Legendary { color: #ffd54f; text-shadow: 0 0 10px rgba(255,213,79,0.5); }
+        .color-Mythic { color: #ff5252; text-shadow: 0 0 10px rgba(255,82,82,0.5); }
+        .color-Godly { color: #18ffff; text-shadow: 0 0 15px rgba(24,255,255,0.8); }
+        .color-Limited { color: #ff9100; text-shadow: 0 0 20px rgba(255,145,0,0.8); }
+        .color-Admin { color: #ff00ff; text-shadow: 0 0 20px rgba(255,0,255,0.9); animation: rainbow 2s infinite; }
+
+        @keyframes popIn { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+        @keyframes rainbow { 0% { color: #ff0000; } 20% { color: #ffff00; } 40% { color: #00ff00; } 60% { color: #00ffff; } 80% { color: #0000ff; } 100% { color: #ff00ff; } }
+        .pulse { animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <h1>Roblox RAP RNG</h1>
+        <div id="loading-status">Loading live market data... Please wait.</div>
+        
+        <p>Total Rolls: <span id="roll-count">0</span></p>
+
+        <div id="roll-display">
+            <h2 id="rolling-text" style="display: none;" class="pulse">Rolling...</h2>
+            <img id="item-image" src="" alt="Roblox Item">
+            <div id="item-name">Click Roll to Start!</div>
+            <div id="item-rarity"></div>
+        </div>
+
+        <button id="btn-roll" class="btn" disabled onclick="window.startRoll()">Roll Item</button>
+        <button class="btn btn-inv" onclick="window.toggleInventory()">Inventory</button>
+        <br>
+        <!-- New Cloud Save Button -->
+        <button class="btn btn-cloud" onclick="window.saveToCloud()">☁️ Save to Cloud</button>
+        <div id="cloud-status"></div>
+
+        <div id="inventory-container">
+            <h3>Your Inventory</h3>
+            <div id="inventory-list"></div>
+        </div>
+    </div>
+
+    <!-- Notice the type="module" here. This is required for Firebase web imports -->
+    <script type="module">
+        // 1. IMPORT FIREBASE DIRECTLY FROM CDN
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
+        // Import Realtime Database functions
+        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        // 2. YOUR FIREBASE CONFIG
+        const firebaseConfig = {
+            apiKey: "AIzaSyCcgiHQ982-iJ4w4f0douNRN9SM_wuArpY",
+            authDomain: "rorng-b627e.firebaseapp.com",
+            projectId: "rorng-b627e",
+            storageBucket: "rorng-b627e.firebasestorage.app",
+            messagingSenderId: "762456375765",
+            appId: "1:762456375765:web:d4feaa04ef6f2ce64c7d5c",
+            measurementId: "G-P9F39Y3CEV"
+        };
+
+        // 3. INITIALIZE FIREBASE
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const db = getDatabase(app); // Connect to Realtime Database
+
+        // Generate a random User ID for this session so we know where to save data in the database
+        // (Later on, you can add Firebase Authentication so players can log in!)
+        let userId = localStorage.getItem("rngUserId");
+        if (!userId) {
+            userId = "player_" + Math.floor(Math.random() * 10000000);
+            localStorage.setItem("rngUserId", userId);
+        }
+
+        // --- GAME STATE ---
+        let rolls = 0;
+        let inventory = {};
+        let isRolling = false;
+        
+        const itemPools = {
+            "Common": [], "Uncommon": [], "Rare": [], "Epic": [],
+            "Legendary": [], "Mythic": [], "Godly": [],
+            "Limited": [{ id: "31101656", name: "Dominus Infernus", rap: 0 }],
+            "Admin": []
+        };
+        const rarities = ["Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Godly", "Limited", "Admin"];
+        const weights = [50000, 25000, 15000, 7000, 2000, 800, 150, 49, 1];
+
+        // --- NEW: SAVE TO FIREBASE FUNCTION ---
+        window.saveToCloud = function() {
+            const statusEl = document.getElementById("cloud-status");
+            statusEl.innerText = "Saving...";
+            
+            // Create a reference in the database: "users/player_123456"
+            const userRef = ref(db, 'users/' + userId);
+            
+            // Push our data to Firebase
+            set(userRef, {
+                totalRolls: rolls,
+                inventory: inventory,
+                lastSaved: new Date().toISOString()
+            }).then(() => {
+                statusEl.innerText = "✅ Successfully saved to Firebase Realtime Database!";
+                setTimeout(() => statusEl.innerText = "", 3000);
+            }).catch((error) => {
+                statusEl.innerText = "❌ Error saving: " + error.message;
+                statusEl.style.color = "#ff5252";
+            });
+        };
+
+        // --- GAME LOGIC ---
+        async function fetchItems() {
+            try {
+                const proxyUrl = "https://api.allorigins.win/raw?url=";
+                const rolimonsUrl = encodeURIComponent("https://www.rolimons.com/itemapi/itemdetails");
+                const response = await fetch(proxyUrl + rolimonsUrl);
+                const data = await response.json();
+                
+                for (const [id, details] of Object.entries(data.items)) {
+                    const name = details[0];
+                    const rap = details[2];
+                    if (name === "Dominus Infernus") continue; 
+                    const itemData = { id: id, name: name, rap: rap };
+
+                    if (rap < 1000) itemPools["Common"].push(itemData);
+                    else if (rap < 5000) itemPools["Uncommon"].push(itemData);
+                    else if (rap < 20000) itemPools["Rare"].push(itemData);
+                    else if (rap < 50000) itemPools["Epic"].push(itemData);
+                    else if (rap < 250000) itemPools["Legendary"].push(itemData);
+                    else if (rap < 2000000) itemPools["Mythic"].push(itemData);
+                    else if (rap < 10000000) itemPools["Godly"].push(itemData);
+                    else itemPools["Admin"].push(itemData);
+                }
+                document.getElementById('loading-status').innerText = "Live data loaded! Ready to play.";
+                document.getElementById('loading-status').style.color = "#4caf50";
+                document.getElementById('btn-roll').disabled = false;
+            } catch (error) {}
+        }
+
+        async function fetchImage(assetId) {
+            try {
+                const proxyUrl = "https://api.allorigins.win/raw?url=";
+                const robloxUrl = encodeURIComponent(`https://thumbnails.roblox.com/v1/assets?assetIds=${assetId}&size=150x150&format=Png&isCircular=false`);
+                const res = await fetch(proxyUrl + robloxUrl);
+                const json = await res.json();
+                return json.data[0].imageUrl;
+            } catch (e) { return ""; }
+        }
+
+        // Because we are using type="module", we have to attach functions to the window object so the HTML buttons can see them.
+        window.startRoll = async function() {
+            if (isRolling) return;
+            isRolling = true;
+            document.getElementById('btn-roll').disabled = true;
+            rolls++;
+            document.getElementById('roll-count').innerText = rolls;
+
+            let rand = Math.random() * 100000;
+            let sum = 0;
+            let rolledRarity = "Common";
+            let rarityIndex = 0;
+
+            for (let i = 0; i < weights.length; i++) {
+                sum += weights[i];
+                if (rand <= sum) {
+                    rolledRarity = rarities[i];
+                    rarityIndex = i;
+                    break;
+                }
+            }
+            while (itemPools[rolledRarity].length === 0) {
+                rarityIndex--;
+                rolledRarity = rarities[rarityIndex];
+            }
+
+            const pool = itemPools[rolledRarity];
+            const rolledItem = pool[Math.floor(Math.random() * pool.length)];
+
+            document.getElementById('item-image').style.display = 'none';
+            document.getElementById('item-name').style.display = 'none';
+            document.getElementById('item-rarity').style.display = 'none';
+            document.getElementById('rolling-text').style.display = 'block';
+
+            let pauseTime = rarityIndex >= 4 ? 2000 : 300;
+            const imageUrl = await fetchImage(rolledItem.id);
+
+            setTimeout(() => {
+                if (!inventory[rolledItem.name]) {
+                    inventory[rolledItem.name] = { count: 0, rarity: rolledRarity, index: rarityIndex };
+                }
+                inventory[rolledItem.name].count += 1;
+
+                document.getElementById('rolling-text').style.display = 'none';
+                
+                const imgEl = document.getElementById('item-image');
+                if(imageUrl) {
+                    imgEl.src = imageUrl;
+                    imgEl.style.display = 'block';
+                }
+
+                const nameEl = document.getElementById('item-name');
+                nameEl.innerText = rolledItem.name;
+                nameEl.style.display = 'block';
+
+                const rarityEl = document.getElementById('item-rarity');
+                rarityEl.innerText = rolledRarity;
+                rarityEl.className = `color-${rolledRarity}`;
+                rarityEl.style.display = 'block';
+
+                updateInventoryUI();
+                isRolling = false;
+                document.getElementById('btn-roll').disabled = false;
+            }, pauseTime);
+        };
+
+        window.toggleInventory = function() {
+            const inv = document.getElementById('inventory-container');
+            inv.style.display = (inv.style.display === 'none' || inv.style.display === '') ? 'block' : 'none';
+        };
+
+        function updateInventoryUI() {
+            const list = document.getElementById('inventory-list');
+            list.innerHTML = "";
+            const sortedItems = Object.entries(inventory).sort((a, b) => b[1].index - a[1].index);
+            if (sortedItems.length === 0) {
+                list.innerHTML = "<p>Inventory is empty.</p>";
+                return;
+            }
+            sortedItems.forEach(([name, data]) => {
+                const div = document.createElement('div');
+                div.className = 'inv-item';
+                div.innerHTML = `<span class="color-${data.rarity}">[${data.rarity}] ${name}</span><span>x${data.count}</span>`;
+                list.appendChild(div);
+            });
+        }
+
+        fetchItems();
+    </script>
+</body>
+</html>
