@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Surron Rider 3D</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{--bg:#10151c;--panel:rgba(16,21,28,.88);--tx:#f2f5f8;--ac:#ffb300;--mut:#9aa7b5;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;background:var(--bg);overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--tx)}
+canvas#g{position:fixed;inset:0;width:100%;height:100%;display:block}
+.hud{position:fixed;left:12px;top:calc(12px + env(safe-area-inset-top,0px));background:var(--panel);padding:10px 14px;border-radius:10px;line-height:1.5;min-width:150px}
+.hud b{color:var(--ac)}
+#wh{color:#6f6;font-weight:700;height:1.2em}
+.btns{position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));display:flex;gap:8px;flex-wrap:wrap}
+button{background:var(--panel);color:var(--tx);border:1px solid #3a4655;border-radius:8px;padding:9px 13px;font-size:14px;cursor:pointer}
+button:hover{border-color:var(--ac)}button:disabled{opacity:.4;cursor:default}
+#map{position:fixed;right:12px;top:calc(12px + env(safe-area-inset-top,0px));width:min(240px,34vw);height:min(240px,34vw);border-radius:8px;border:2px solid #3a4655;transition:.2s;cursor:pointer}
+#map.big{width:min(94vmin,900px);height:min(94vmin,900px);right:50%;top:50%;transform:translate(50%,-50%)}
+.pop{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--panel);padding:20px;border-radius:12px;min-width:290px;max-width:92vw;max-height:88vh;overflow:auto;display:none;text-align:center}
+.pop h2{margin:0 0 12px}.pop h3{margin:14px 0 2px;text-align:left}.pop.wide{width:min(560px,92vw)}.pop input:not(#code){background:#0b0f14;color:var(--tx);border:1px solid #3a4655;border-radius:8px;padding:8px;font-size:15px;width:55%}
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:8px 0;text-align:left}
+.row small{color:var(--mut);display:block}
+#code{font-size:28px;letter-spacing:8px;width:10ch;text-align:center;background:#0b0f14;color:var(--tx);border:1px solid #3a4655;border-radius:8px;padding:8px}
+#msg{min-height:1.4em;margin:8px 0;color:var(--ac)}
+#start{position:fixed;inset:0;background:rgba(10,14,20,.82);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;cursor:pointer}
+#chatToggle{position:fixed;right:12px;bottom:12px;z-index:5}
+#chatBox{position:fixed;right:12px;bottom:58px;width:min(340px,calc(100vw - 24px));height: min(390px,55vh);background:rgba(16,21,28,.96);border:1px solid #3a4655;border-radius:12px;display:none;flex-direction:column;z-index:5;overflow:hidden;box-shadow:0 8px 28px #0008}
+#chatHead{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #3a4655;font-weight:700;color:var(--ac)}
+#chatMessages{flex:1;overflow:auto;padding:8px 10px;text-align:left;font-size:13px;overflow-wrap:anywhere}
+.chatMsg{margin:0 0 8px;line-height:1.35}.chatMsg b{color:var(--ac)}.chatMsg small{color:var(--mut);font-size:10px}
+#chatForm{display:flex;gap:6px;padding:8px;border-top:1px solid #3a4655}#chatInput{flex:1;min-width:0;background:#0b0f14;color:var(--tx);border:1px solid #3a4655;border-radius:7px;padding:9px;font-size:14px}
+#chatStatus{padding:0 10px 6px;color:var(--mut);font-size:11px}
+#start h1{margin:0;font-size:42px;color:var(--ac)}#start p{margin:0;color:var(--mut);max-width:520px;line-height:1.5}
+</style></head><body>
+<canvas id="g"></canvas>
+<div class="hud"><div>🪙 <b id="coins">0</b></div><div><b id="mph">0</b> mph</div><div id="bn">Stock Surron</div><div id="pc"></div><div id="nt"></div><div id="wh"></div></div>
+<canvas id="map" width="800" height="800" title="Click to enlarge (M)"></canvas>
+<div class="btns"><button id="bMP">🌐 Multiplayer (P)</button><button id="bInfo">ℹ️ Info (I)</button><button id="bShop">🛠 Upgrades (U)</button><button id="bMap">🗺 Map (M)</button><button id="bCode">🔑 Secret Code</button><button id="bGar">🚗 Garage (G)</button><button id="bDeal">🏪 Dealership</button><button id="chatToggle">💬 Global Chat (C)</button></div>
+<div class="pop" id="shop"><h2>Upgrades</h2><div id="shopList"></div><button onclick="closeAll()">Close</button></div>
+<div class="pop wide" id="mpP"><h2>🌐 Multiplayer</h2><div class="row"><span>Your name</span><input id="mpName" maxlength="16"></div><div class="row"><span>Room code</span><input id="mpRoom" maxlength="24" placeholder="blank = public lobby"></div><button id="mpJoin">Join</button><div id="mpStat" style="margin:10px 0;color:var(--ac)"></div><div id="mpList" style="text-align:left"></div><small style="color:var(--mut)">Everyone who opens this page while signed in appears in the lobby. Use a room code to ride with just your friends.</small><br><br><button onclick="closeAll()">Close</button></div>
+<div class="pop wide" id="infoP"><h2>Controls</h2><div style="text-align:left;line-height:1.75;margin-bottom:12px"><b>W / ↑</b> throttle<br><b>S</b> wheelie (hold while moving, let go before you loop out)<br><b>Space</b> seat stand (works during a wheelie for a x2 combo)<br><b>↓ / B</b> brake and reverse<br><b>A / D</b> or <b>← / →</b> steer<br><b>Shift</b> nitro (needs the Nitro upgrade)<br><b>C</b> global chat<br><b>U</b> upgrades · <b>G</b> garage · <b>M</b> map · <b>I</b> this info · <b>P</b> multiplayer · <b>Esc</b> close<br><br>🪙 Earn coins from wheelies and seat stands. Spend them on upgrades, or buy new vehicles at the Dealership.<br>🔑 The Secret Code button unlocks a special bike.<br>🌊 Stay on the bridges! Falling in the river sends you back to the start.</div><button onclick="closeAll()">Close</button></div>
+<div class="pop wide" id="garP"><h2>Garage</h2><div id="garList"></div><button onclick="closeAll()">Close</button></div><div class="pop wide" id="dealP"><h2>Dealership</h2><div id="dealList"></div><button onclick="closeAll()">Close</button></div>
+<div class="pop" id="codeP"><h2>Enter 6-digit code</h2><input id="code" maxlength="6" inputmode="numeric" placeholder="······" autocomplete="off"><div id="msg"></div><button id="bGo">Unlock</button> <button onclick="closeAll()">Close</button></div>
+<section id="chatBox" aria-label="Global chat"><div id="chatHead"><span>🌎 Global Chat</span><button id="chatClose" type="button">✕</button></div><div id="chatMessages"><div style="color:var(--mut)">Connecting to global chat…</div></div><div id="chatStatus">Messages are visible to everyone.</div><form id="chatForm"><input id="chatInput" maxlength="180" placeholder="Message everyone…" autocomplete="off"><button type="submit">Send</button></form></section>
+<div id="start"><h1>SURRON RIDER 3D</h1><p>Hold <b>S</b> to wheelie or <b>Space</b> to seat-stand while moving to earn coins. Spend them on upgrades to go faster.<br><br><b>W</b> throttle · <b>S</b> wheelie (let go before you loop out!) · <b>Space</b> seat stand · <b>↓/B</b> brake · <b>A/D</b> steer · <b>Shift</b> nitro · <b>U</b> upgrades · <b>G</b> garage · <b>M</b> map · <b>C</b> global chat</p><p><b>Click to ride</b></p></div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const MPH=0.447,W=1400,H=W/2;
+let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+// ---------- world data + map texture ----------
+const base=document.createElement('canvas');base.width=base.height=2048;const bc=base.getContext('2d'),S=2048/W;
+bc.fillStyle='#4a7c3a';bc.fillRect(0,0,2048,2048);
+const P=v=>(v+H)*S;
+for(let k=-3;k<=3;k++){const c=k*100;
+ bc.fillStyle='#b9b9b0';bc.fillRect(P(c-9),P(-307),18*S,614*S);bc.fillRect(P(-307),P(c-9),614*S,18*S);
+ bc.fillStyle='#333';bc.fillRect(P(c-7),P(-307),14*S,614*S);bc.fillRect(P(-307),P(c-7),614*S,14*S);}
+bc.strokeStyle='#e8c200';bc.lineWidth=1.2*S;bc.setLineDash([6*S,6*S]);
+for(let k=-3;k<=3;k++){const c=k*100;bc.beginPath();bc.moveTo(P(c),P(-307));bc.lineTo(P(c),P(307));bc.moveTo(P(-307),P(c));bc.lineTo(P(307),P(c));bc.stroke();}
+bc.setLineDash([]);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x9fd2f2);scene.fog=new THREE.Fog(0x9fd2f2,120,420);
+scene.add(new THREE.HemisphereLight(0xffffff,0x557744,.9));
+const sun=new THREE.DirectionalLight(0xffffff,.7);sun.position.set(80,150,60);scene.add(sun);
+const tex=new THREE.CanvasTexture(base);tex.anisotropy=8;
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(W,W),new THREE.MeshLambertMaterial({map:tex}));ground.rotation.x=-Math.PI/2;scene.add(ground);
+const boxes=[],cols=[0xc9b8a6,0x8fa3b8,0xd6a77a,0xa0a8a0,0xb77b6b,0x7d8fa6];
+for(let i=0;i<6;i++)for(let j=0;j<6;j++){const cx=-250+i*100,cz=-250+j*100;
+ if(rnd()<.22){for(let t=0;t<6;t++){const x=cx+(rnd()-.5)*70,z=cz+(rnd()-.5)*70;if(Math.abs(z)<20)continue;
+  const tr=new THREE.Mesh(new THREE.CylinderGeometry(.4,.5,3),new THREE.MeshLambertMaterial({color:0x6b4a2b}));tr.position.set(x,1.5,z);
+  const lf=new THREE.Mesh(new THREE.ConeGeometry(3,7,8),new THREE.MeshLambertMaterial({color:0x2f6b2f}));lf.position.set(x,6,z);scene.add(tr,lf);}
+  bc.fillStyle='#2f6b2f';bc.fillRect(P(cx-38),P(cz-38),76*S,76*S);continue;}
+ for(const[ox,oz]of[[-21,-21],[21,-21],[-21,21],[21,21]]){if(rnd()<.15)continue;
+  const w=20+rnd()*14,d=20+rnd()*14,h=8+rnd()*38,x=cx+ox,z=cz+oz;if(Math.abs(z)-d/2<17)continue;
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:cols[(rnd()*6)|0]}));m.position.set(x,h/2,z);scene.add(m);
+  boxes.push({x,z,hw:w/2+.8,hd:d/2+.8});bc.fillStyle='#6d6d68';bc.fillRect(P(x-w/2),P(z-d/2),w*S,d*S);}}
+const RC=[-600,-300,-200,-100,0,100,200,300,600];
+bc.fillStyle='#d9c58f';bc.fillRect(P(-H),P(-18),W*S,36*S);bc.fillStyle='#2a79c4';bc.fillRect(P(-H),P(-14),W*S,28*S);
+bc.fillStyle='#5aa7ec';for(let i=0;i<90;i++)bc.fillRect(P(-H+rnd()*W),P(-12+rnd()*24),16*S,1.2*S);
+bc.fillStyle='#b9b9b0';for(const c of RC){bc.fillRect(P(c-9),P(-607),18*S,1214*S);if(c)bc.fillRect(P(-607),P(c-9),1214*S,18*S)}
+bc.fillStyle='#333';for(const c of RC){bc.fillRect(P(c-7),P(-607),14*S,1214*S);if(c)bc.fillRect(P(-607),P(c-7),1214*S,14*S)}
+bc.strokeStyle='#e8c200';bc.lineWidth=1.2*S;bc.setLineDash([6*S,6*S]);bc.beginPath();for(const c of RC){bc.moveTo(P(c),P(-607));bc.lineTo(P(c),P(607));if(c){bc.moveTo(P(-607),P(c));bc.lineTo(P(607),P(c))}}bc.stroke();bc.setLineDash([]);
+tex.needsUpdate=true;
+const tg1=new THREE.CylinderGeometry(.4,.5,3),tg2=new THREE.ConeGeometry(3,7,8),tm1=new THREE.MeshLambertMaterial({color:0x6b4a2b}),tm2=new THREE.MeshLambertMaterial({color:0x2f6b2f});
+for(let i=0;i<260;i++){const x=(rnd()-.5)*1380,z=(rnd()-.5)*1380;
+ if((Math.abs(x)<320&&Math.abs(z)<320)||Math.abs(z)<30||RC.some(c=>Math.abs(x-c)<16||Math.abs(z-c)<16))continue;
+ const t=new THREE.Mesh(tg1,tm1);t.position.set(x,1.5,z);const l=new THREE.Mesh(tg2,tm2);l.position.set(x,6,z);scene.add(t,l)}
+const rm=new THREE.MeshLambertMaterial({color:0xcfd2d6}),twm=new THREE.MeshLambertMaterial({color:0xc0392b});
+for(const c of RC)for(const s of[-1,1]){const r=new THREE.Mesh(new THREE.BoxGeometry(.5,1.1,30),rm);r.position.set(c+s*7.7,.55,0);scene.add(r);boxes.push({x:c+s*7.7,z:0,hw:.7,hd:15})}
+for(const s of[-1,1])for(const zz of[-14,14]){const t=new THREE.Mesh(new THREE.BoxGeometry(1.4,16,1.4),twm);t.position.set(s*9,8,zz);scene.add(t)}
+for(const zz of[-14,14]){const b=new THREE.Mesh(new THREE.BoxGeometry(20,1.3,1.3),twm);b.position.set(0,15,zz);scene.add(b)}
+// ---------- bike ----------
+const M=(g,c)=>new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:c}));
+// Six jump ramps are scattered along the road network.
+const jumpRamps=[{x:-300,z:-220,h:0},{x:200,z:260,h:Math.PI},{x:600,z:-420,h:0},{x:-600,z:400,h:Math.PI},{x:100,z:420,h:Math.PI},{x:-200,z:180,h:0}];
+const rampGeo=new THREE.BufferGeometry();
+rampGeo.setAttribute('position',new THREE.Float32BufferAttribute([
+ -4,0,-5, 4,0,-5, -4,2,5, 4,0,-5, 4,2,5, -4,2,5,
+ -4,0,-5, -4,2,5, -4,0,5, 4,0,-5, 4,0,5, 4,2,5,
+ -4,0,5, -4,2,5, 4,0,5, 4,0,5, -4,2,5, 4,2,5
+],3));rampGeo.computeVertexNormals();
+for(const r of jumpRamps){const g=new THREE.Group();g.position.set(r.x,0,r.z);g.rotation.y=r.h;const ramp=new THREE.Mesh(rampGeo,new THREE.MeshLambertMaterial({color:0xffb300,side:THREE.DoubleSide}));g.add(ramp);
+ for(const sx of [-2.5,0,2.5]){const stripe=new THREE.Mesh(new THREE.BoxGeometry(.32,.045,8),new THREE.MeshLambertMaterial({color:0x252525}));stripe.position.set(sx,.75,0);stripe.rotation.x=-Math.atan2(2,10);g.add(stripe)}
+ const sign=new THREE.Mesh(new THREE.BoxGeometry(5,.18,.18),new THREE.MeshLambertMaterial({color:0xff6d00}));sign.position.set(0,2.5,-5);g.add(sign);scene.add(g);r.group=g;
+}
+const bike=new THREE.Group(),tilt=new THREE.Group();tilt.position.set(0,.35,-.7);bike.add(tilt);scene.add(bike);
+const wheels=[];
+for(const z of[0,1.4]){const w=M(new THREE.CylinderGeometry(.35,.35,.14,16).rotateZ(Math.PI/2),0x111111);w.position.set(0,0,z);
+ const mk=M(new THREE.BoxGeometry(.18,.1,.1),0xffffff);mk.position.set(0,.3,0);w.add(mk);tilt.add(w);wheels.push(w);}
+const accent=M(new THREE.BoxGeometry(.22,.34,.55),0xe53935);accent.position.set(0,.3,.55);tilt.add(accent);
+const add=(g,c,x,y,z,rx)=>{const m=M(g,c);m.position.set(x,y,z);if(rx)m.rotation.x=rx;tilt.add(m);return m};
+const frame=add(new THREE.BoxGeometry(.14,.2,1.3),0x222222,0,.25,.7);const deck=add(new THREE.BoxGeometry(.32,.07,1.1),0x333333,0,-.05,.7);deck.visible=false;
+const seat=add(new THREE.BoxGeometry(.2,.08,.6),0x111111,0,.6,.15);
+const bars=new THREE.Group();bars.position.set(0,.5,1.3);tilt.add(bars);
+const bAdd=(g,c,x,y,z,rx)=>{const m=M(g,c);m.position.set(x,y,z);if(rx)m.rotation.x=rx;bars.add(m)};
+bAdd(new THREE.BoxGeometry(.06,.75,.06),0x888888,0,-.15,.05,-.35);bAdd(new THREE.BoxGeometry(.7,.05,.05),0x111111,0,.3,-.1);
+bars.add(wheels[1]);wheels[1].position.set(0,-.5,.1);
+
+const rider=new THREE.Group();tilt.add(rider);
+const rAdd=(g,c,x,y,z)=>{const m=M(g,c);m.position.set(x,y,z);rider.add(m);return m};
+const torso=rAdd(new THREE.BoxGeometry(.42,.6,.25),0x1565c0,0,.98,.3);torso.rotation.x=.2;
+rAdd(new THREE.SphereGeometry(.17,12,10),0xf0c9a0,0,1.45,.4);rAdd(new THREE.BoxGeometry(.4,.3,.3),0x1565c0,0,1.5,.38);
+const legs=new THREE.Group();legs.position.set(0,.64,.3);legs.rotation.x=-1;rider.add(legs);
+for(const sx of[-.13,.13]){const l=M(new THREE.BoxGeometry(.14,.54,.16),0x222c3a);l.position.set(sx,-.27,0);legs.add(l)}
+
+
+// ---------- state ----------
+const st={x:0,z:-45,h:0,v:0,pitch:0,jumpY:0,jumpV:0,jumpCooldown:0,coins:0,bike:'s',unlocked:false,owned:{s:1},flip:0,nitro:0,lv:{motor:0,accel:0,boost:0,tires:0,balance:0,nitro:0}};
+const UP=[{k:'motor',n:'⚡ Motor',d:'+6 mph top speed',c:[100,250,500,1000,2000]},
+ {k:'accel',n:'🚀 Acceleration',d:'Faster launch',c:[80,200,400,800,1600]},
+ {k:'boost',n:'🪙 Coin boost',d:'+1 coin/sec while wheelieing',c:[75,200,400,800,1600]},
+ {k:'balance',n:'⚖️ Balance',d:'Wheelie higher before you loop out',c:[120,300,600,1200,2400]},
+ {k:'tires',n:'🛞 Off-road tires',d:'+10% grass speed, better steering',c:[60,150,300,600,1200]},
+ {k:'nitro',n:'🔥 Nitro (Shift)',d:'+1.5s boost tank, 25% faster, 2x accel',c:[150,350,700,1400,2800]}];
+const $=i=>document.getElementById(i);const keys={};let paused=true,started=false;
+const V=[
+['g2','KuKirin','KuKirin G2 Master','Dual-motor off-road scooter','scooter',35,6,1200,0xff6d00],
+['g4','KuKirin','KuKirin G4','High-power 2000W single-motor scooter','scooter',38,7,1800,0xd50000],
+['m4','KuKirin','KuKirin M4 Max','Versatile commuter with dual suspension','scooter',30,5,600,0x00acc1],
+['s1','KuKirin','KuKirin S1 Max','Lightweight urban commuter scooter','scooter',22,3.5,250,0x78909c],
+['t3','KuKirin','KuKirin T3','Seated long-distance off-road scooter','scooter',28,4,450,0x558b2f,{seat:1}],
+['s','Surron','Surron Light Bee X','Iconic lightweight flagship off-road bike','moto',25,4,0,0xe53935],
+['ubh','Surron','Surron Ultra Bee HP','Mid-size trail electric motorcycle','moto',45,9,3500,0x1e88e5],
+['sb','Surron','Surron Storm Bee','Full-scale electric motocross bike','moto',55,11,6000,0x212121],
+['hb','Surron','Surron Hyper Bee','Compact youth electric dirt bike','moto',30,5,900,0xfdd835,{s:.85}],
+['ubt','Surron','Surron Ultra Bee T','Road-registrable street-legal variant','moto',40,8,2500,0x43a047],
+['st4','Talaria','Talaria Sting R MX4','Gear-driven off-road electric bike','moto',42,9,2800,0xff7043],
+['xxx','Talaria','Talaria XXX (X3)','Slim urban and light-trail bike','moto',35,7,1500,0x8e24aa],
+['mx5','Talaria','Talaria Sting Pro MX5','Upgraded high-voltage 72V performance bike','moto',52,11,5000,0xc62828],
+['kom','Talaria','Talaria Komodo','Extreme-power high-tier dirt bike','moto',65,13,9000,0x00e676],
+['jr','Talaria','Talaria Junior (JR-12)','Kids\u2019 electric balance training bike','moto',18,3,120,0x29b6f6,{s:.7}],
+['rp','Dirodi','Dirodi Rover Pro','Dual-suspension fat-tyre utility e-bike','ebike',28,5,500,0x6d4c41,{fat:1}],
+['vi','Dirodi','Dirodi Vivo','Retro step-through lifestyle cruiser','ebike',20,3,200,0xf06292],
+['no','Dirodi','Dirodi Nova','Mid-drive lightweight city e-bike','ebike',24,4,300,0x26c6da],
+['pr','Dirodi','Dirodi Primo','Entry-level everyday commuter bike','ebike',18,3,80,0x9ccc65],
+['vo','Dirodi','Dirodi Voltz','Compact urban utility e-bike','ebike',22,3.5,150,0xffa726,{s:.9}],
+['sc3','Fatboy','Fatboy Scrambler V3','Moped-style heavy-duty fat bike','ebike',32,6,1300,0xbf360c,{fat:1}],
+['ha','Fatboy','Fatboy Harlem V3','Vintage low-rider beach cruiser','ebike',24,4,450,0x4db6ac,{fat:1}],
+['ba','Fatboy','Fatboy Bagus V3','Premium high-torque fat-tyre bike','ebike',38,8,2200,0x5c6bc0,{fat:1}],
+['dna','Fatboy','Fatboy DNA V3','EN15194 European-compliant safety model','ebike',16,3,250,0xeeeeee,{fat:1}],
+['scu','Fatboy','Fatboy Scrambler V3 Ultra','High-spec long-range suspension edition','ebike',45,9,4000,0x212121,{fat:1}],
+['x','Secret','⭐ Surron X (80 mph)','Secret code bike','moto',80,14,0,0xffd600]
+].map(([id,b,n,d,m,t,a,p,c,o])=>({id,b,n,d,m,t,a,p,c,...o}));
+// Save coins, owned bikes, selected bike, unlocks and upgrades in this browser.
+const SAVE_KEY='surronRider3D_save_v1';
+function saveGame(){try{localStorage.setItem(SAVE_KEY,JSON.stringify({coins:st.coins,bike:st.bike,unlocked:st.unlocked,owned:st.owned,lv:st.lv}));}catch(e){}}
+function loadGame(){try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return;const d=JSON.parse(raw);if(Number.isFinite(d.coins)&&d.coins>=0)st.coins=d.coins;if(d.owned&&typeof d.owned==='object')st.owned={...st.owned,...d.owned,s:1};if(d.lv&&typeof d.lv==='object')for(const k of Object.keys(st.lv)){const n=Number(d.lv[k]);if(Number.isFinite(n))st.lv[k]=Math.max(0,Math.min(5,Math.floor(n)));}st.unlocked=!!d.unlocked;if(typeof d.bike==='string'&&V.some(v=>v.id===d.bike)&&(st.owned[d.bike]||(d.bike==='x'&&st.unlocked)))st.bike=d.bike;}catch(e){}}
+loadGame();
+const cur=()=>V.find(v=>v.id===st.bike);
+function setBike(b){st.bike=b;const v=cur(),wr=v.m==='scooter'?.2:v.m==='ebike'?.33:.35;
+ accent.material.color.set(v.c);accent.visible=v.m!=='ebike';accent.position.set(0,v.m==='scooter'?.08:.3,v.m==='scooter'?.7:.55);
+ bike.scale.setScalar(v.s||1);tilt.position.y=wr;wheels.forEach(w=>w.scale.set(v.fat?2.2:1,wr/.35,wr/.35));
+ frame.visible=v.m!=='scooter';seat.visible=v.m!=='scooter'||!!v.seat;deck.visible=v.m==='scooter';
+ st.pose=v.m==='scooter'&&!v.seat?1:0;$('bn').textContent=v.n;saveGame()}
+const brands=['KuKirin','Surron','Talaria','Dirodi','Fatboy'],BI={KuKirin:'🛴',Surron:'🏍️',Talaria:'🏍️',Dirodi:'🚲',Fatboy:'🚲'};
+const rowH=(v,btn)=>`<div class="row"><div><b>${v.n}</b><small>${v.d} · ${v.t} mph · accel ${v.a}</small></div>${btn}</div>`;
+function renderGar(){$('garList').innerHTML=V.filter(v=>st.owned[v.id]||(v.id==='x'&&st.unlocked)).map(v=>rowH(v,`<button data-r="${v.id}" ${v.id===st.bike?'disabled':''}>${v.id===st.bike?'Riding':'Ride'}</button>`)).join('')}
+function renderDeal(){$('coins').textContent=Math.floor(st.coins);let h='<small>🪙 '+Math.floor(st.coins)+'</small>';for(const b of brands)h+=`<h3>${BI[b]} ${b}</h3>`+V.filter(v=>v.b===b).map(v=>rowH(v,st.owned[v.id]?'<button disabled>Owned</button>':`<button data-b="${v.id}" ${st.coins<v.p?'disabled':''}>🪙 ${v.p}</button>`)).join('');$('dealList').innerHTML=h}
+$('garList').onclick=e=>{const r=e.target.dataset.r;if(r){setBike(r);saveGame();renderGar()}};
+$('dealList').onclick=e=>{const i=e.target.dataset.b;if(!i)return;const v=V.find(q=>q.id===i);if(st.coins>=v.p&&!st.owned[i]){st.coins-=v.p;st.owned[i]=1;saveGame();renderDeal()}};
+$('bInfo').onclick=()=>openP('infoP');$('bGar').onclick=()=>openP('garP');$('bDeal').onclick=()=>openP('dealP');
+
+function topMph(){return st.bike==='x'?80:cur().t+6*st.lv.motor}
+function setBike0(b){st.bike=b;accent.material.color.set(b==='x'?0xffd600:0xe53935);$('bn').textContent=b==='x'?'⭐ Surron X (80 mph)':'Stock Surron'}
+function renderShop(){$('coins').textContent=Math.floor(st.coins);$('shopList').innerHTML=UP.map((u,i)=>{const l=st.lv[u.k],max=l>=5;
+ return `<div class="row"><div><b>${u.n}</b> Lv ${l}/5<small>${u.d}</small></div><button data-i="${i}" ${max||st.coins<u.c[l]?'disabled':''}>${max?'MAX':'🪙 '+u.c[l]}</button></div>`}).join('')+
+ (st.bike==='x'?'<small>Surron X is fixed at 80 mph.</small>':'')}
+$('shopList').onclick=e=>{const i=e.target.dataset.i;if(i==null)return;const u=UP[i],l=st.lv[u.k];if(l<5&&st.coins>=u.c[l]){st.coins-=u.c[l];st.lv[u.k]++;saveGame();renderShop()}};
+function closeAll(){['shop','codeP','garP','dealP','infoP','mpP'].forEach(i=>$(i).style.display='none');$('map').classList.remove('big');paused=!started;$('code').blur()}
+function openP(id){closeAll();$(id).style.display='block';paused=true;if(id==='shop')renderShop();if(id==='mpP')renderMP();if(id==='garP')renderGar();if(id==='dealP')renderDeal();if(id==='codeP'){$('msg').textContent='';$('code').value='';setTimeout(()=>$('code').focus(),50)}}
+$('bShop').onclick=()=>openP('shop');$('bCode').onclick=()=>openP('codeP');
+$('bMap').onclick=$('map').onclick=()=>$('map').classList.toggle('big');
+
+$('bGo').onclick=()=>{if($('code').value==='000000'){st.unlocked=true;setBike('x');saveGame();$('msg').textContent='✅ Unlocked: Surron X — 80 mph!';setTimeout(closeAll,1200)}else $('msg').textContent='❌ Wrong code'};
+$('code').onkeydown=e=>{if(e.key==='Enter')$('bGo').click()};
+$('code').oninput=e=>e.target.value=e.target.value.replace(/\D/g,'');
+$('start').onclick=()=>{$('start').style.display='none';started=true;paused=false};
+addEventListener('keydown',e=>{if(e.target.tagName==='INPUT'){if(e.key==='Escape')closeAll();return}
+ keys[e.code]=true;if(e.code==='Space')e.preventDefault();
+ if(e.code==='KeyU')$('shop').style.display==='block'?closeAll():openP('shop');
+ if(e.code==='KeyI')$('infoP').style.display==='block'?closeAll():openP('infoP');if(e.code==='KeyP')$('mpP').style.display==='block'?closeAll():openP('mpP');if(e.code==='KeyG')$('garP').style.display==='block'?closeAll():openP('garP');if(e.code==='KeyM')$('map').classList.toggle('big');if(e.code==='KeyC')toggleChat();if(e.code==='Escape'){closeAll();closeChat()} });
+addEventListener('keyup',e=>keys[e.code]=false);
+// ---------- renderer ----------
+const R=new THREE.WebGLRenderer({canvas:$('g'),antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,2));
+const cam=new THREE.PerspectiveCamera(65,1,.1,700);
+function rs(){R.setSize(innerWidth,innerHeight,false);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}addEventListener('resize',rs);rs();
+const mc=$('map').getContext('2d');
+function drawMap(){mc.drawImage(base,0,0,800,800);const x=(st.x+H)/W*800,y=(st.z+H)/W*800;
+ for(const e of others.values()){const ex=(e.g.position.x+H)/W*800,ez=(e.g.position.z+H)/W*800;mc.fillStyle='#29b6f6';mc.strokeStyle='#fff';mc.lineWidth=3;mc.beginPath();mc.arc(ex,ez,11,0,7);mc.fill();mc.stroke();mc.fillStyle='#fff';mc.font='bold 24px sans-serif';mc.fillText(e.name,ex+14,ez+8)}
+ for(const r of jumpRamps){const rx=(r.x+H)/W*800,rz=(r.z+H)/W*800;mc.fillStyle='#ffb300';mc.strokeStyle='#111';mc.lineWidth=2;mc.beginPath();mc.arc(rx,rz,8,0,Math.PI*2);mc.fill();mc.stroke();mc.fillStyle='#111';mc.font='bold 13px sans-serif';mc.fillText('J',rx-4,rz+5)}
+ mc.save();mc.translate(x,y);mc.rotate(Math.PI-st.h);mc.fillStyle='#ff3d00';mc.strokeStyle='#fff';mc.lineWidth=3;
+ mc.beginPath();mc.moveTo(0,-30);mc.lineTo(18,22);mc.lineTo(-18,22);mc.closePath();mc.fill();mc.stroke();mc.restore();
+ mc.fillStyle='#fff';mc.font='bold 34px sans-serif';mc.fillText('N ↑',14,44);mc.textAlign='center';mc.fillText('Main Bridge',400,372);mc.textAlign='left'}
+let last=performance.now(),acc=0,saveAcc=0,camH=0;
+function loop(t){requestAnimationFrame(loop);const dt=Math.min(.05,(t-last)/1000);last=t;
+ if(!paused){
+  const fl=st.flip>0,th=!fl&&(keys.KeyW||keys.ArrowUp),br=!fl&&(keys.KeyB||keys.ArrowDown),L=!fl&&(keys.KeyA||keys.ArrowLeft),Rt=!fl&&(keys.KeyD||keys.ArrowRight);
+  const nx=Math.min(...RC.map(c=>Math.abs(st.x-c))),nz=Math.min(...RC.filter(c=>c).map(c=>Math.abs(st.z-c)));
+  const road=(nx<8&&Math.abs(st.z)<=610)||(nz<8&&Math.abs(st.x)<=610);
+  const nit=!fl&&(keys.ShiftLeft||keys.ShiftRight)&&st.nitro>0&&st.lv.nitro>0,nmax=st.lv.nitro*1.5;
+  if(nit)st.nitro=Math.max(0,st.nitro-dt);else st.nitro=Math.min(nmax,st.nitro+.6*dt);
+  const top=topMph()*MPH*(road?1:.45+.1*st.lv.tires)*(nit?1.25:1),ac=(st.bike==='x'?14:cur().a+1.6*st.lv.accel)*(nit?2:1);
+  if(th)st.v+=ac*dt*Math.max(.2,1-Math.max(0,st.v)/(top*1.25));else if(br)st.v-=(st.v>.3?22:6)*dt;else st.v-=Math.sign(st.v)*Math.min(Math.abs(st.v),(1.5+Math.abs(st.v)*.12)*dt);
+  if(st.v>top)st.v=Math.max(top,st.v-18*dt);if(st.v<-6)st.v=-6;
+  const sv=Math.abs(st.v),steerT=(L?1:0)-(Rt?1:0);st.steer=(st.steer||0)+(steerT-(st.steer||0))*Math.min(1,9*dt);const steer=st.steer;
+  st.h+=steer*dt*1.7*(1+.12*st.lv.tires)*Math.min(1,sv/6)/(1+sv/35)*(st.v<0?-1:1);
+  const ox=st.x,oz=st.z;st.x+=Math.sin(st.h)*st.v*dt;st.z+=Math.cos(st.h)*st.v*dt;
+  if(st.jumpY<.7)for(const b of boxes)if(Math.abs(st.x-b.x)<b.hw&&Math.abs(st.z-b.z)<b.hd){const bx=Math.abs(ox-b.x)>=b.hw,bz=Math.abs(oz-b.z)>=b.hd;if(bx===bz){st.x=ox;st.z=oz}else if(bx)st.x=ox;else st.z=oz;st.v*=.7;break}
+  st.x=Math.max(-H+10,Math.min(H-10,st.x));st.z=Math.max(-H+10,Math.min(H-10,st.z));
+  if(st.flash>0)st.flash-=dt;
+  // Launch when riding across a ramp at speed; gravity brings the bike back down.
+  st.jumpCooldown=Math.max(0,st.jumpCooldown-dt);
+  if(st.jumpY<=0.02&&st.jumpCooldown<=0&&Math.abs(st.v)>7){
+   for(const r of jumpRamps){const dx=st.x-r.x,dz=st.z-r.z;const along=dx*Math.sin(r.h)+dz*Math.cos(r.h),across=dx*Math.cos(r.h)-dz*Math.sin(r.h);
+    if(Math.abs(across)<4.1&&along>-3.8&&along<3.8){st.jumpV=7+Math.min(5,Math.abs(st.v)*.16);st.jumpY=.03;st.jumpCooldown=1.35;break;}}
+  }
+  if(st.jumpY>0||st.jumpV>0){st.jumpY+=st.jumpV*dt;st.jumpV-=18*dt;if(st.jumpY<=0){st.jumpY=0;st.jumpV=0}}
+  if(Math.abs(st.z)<13.5&&Math.min(...RC.map(c=>Math.abs(st.x-c)))>=7.6){st.x=0;st.z=-45;st.h=0;camH=0;st.v=0;st.pitch=0;st.pr=0;st.flip=0;st.flash=2.5}
+  const lim=1.25+.1*st.lv.balance,mv=st.v>3,wT=!fl&&keys.KeyS&&mv,sT=!fl&&keys.Space&&mv;
+  if(st.flip>0){st.flip-=dt;st.pitch=Math.min(6.283,st.pitch+7*dt);st.v*=1-1.5*dt;if(st.flip<=0){st.pitch=0;st.pr=0;st.v=0}}
+  else{
+   const tr=wT?(th?1:.6)*(st.pitch<.5?1.6:1):-(br?2.8:1.1);st.pr=(st.pr||0)+(tr-(st.pr||0))*Math.min(1,10*dt);
+   st.pitch+=st.pr*dt;if(st.pitch<=0){st.pitch=0;if(st.pr<0)st.pr=0}
+   if(st.pitch>lim)st.flip=1.4;
+  }
+  st.stand=(st.stand||0)+((sT?1:0)-(st.stand||0))*Math.min(1,8*dt);const wh=st.flip<=0&&st.pitch>.35;
+  if(wh)st.coins+=(5+st.lv.boost)*dt;if(sT&&st.stand>.5)st.coins+=(2+.5*st.lv.boost)*dt*(wh?2:1);
+  $('wh').textContent=st.flash>0?'🌊 SPLASH! Stay on the bridge':st.flip>0?'💥 LOOPED OUT!':wh?'WHEELIE! +'+(5+st.lv.boost)+'/s'+(sT&&st.stand>.5?' + 🧍 COMBO x2':'')+(st.pitch>lim-.25?' ⚠ LET GO!':''):sT&&st.stand>.5?'🧍 SEAT STAND +'+(2+.5*st.lv.boost)+'/s':'';
+  wheels.forEach(w=>w.rotation.x+=st.v*dt/.35);
+  st.lean=(st.lean||0)+((-steer*.3*Math.min(1,sv/12))-(st.lean||0))*Math.min(1,8*dt);tilt.rotation.x=-st.pitch;tilt.rotation.z=st.lean;
+  const es=Math.max(st.stand,st.pose||0);rider.position.y=.32*es-(st.pose?.42+.15*st.stand:0);rider.position.z=-.12*st.stand;torso.rotation.x=.2*(1-es);legs.rotation.x=-(1-es);bars.rotation.y=steer*.35;
+  saveAcc+=dt;if(saveAcc>=1){saveAcc=0;saveGame()}
+  acc+=dt;if(acc>.25){acc=0;$('coins').textContent=Math.floor(st.coins);$('mph').textContent=Math.round(sv/MPH);$('nt').textContent=st.lv.nitro?'🔥 Nitro '+Math.round(st.nitro/nmax*100)+'% (Shift)':''}
+ }
+ bike.position.set(st.x,st.jumpY+(st.flip>0?Math.max(0,Math.sin(Math.min(st.pitch,3.14)))*1.2:0),st.z);bike.rotation.y=st.h;
+ let dh=st.h-camH;dh=Math.atan2(Math.sin(dh),Math.cos(dh));camH+=dh*(1-Math.exp(-4*dt));const fx=Math.sin(camH),fz=Math.cos(camH),k=1-Math.exp(-8*dt);
+ cam.position.x+=(st.x-fx*7.5-cam.position.x)*k;cam.position.y+=(3.4+st.pitch*1.5+st.jumpY*.55-cam.position.y)*k;cam.position.z+=(st.z-fz*7.5-cam.position.z)*k;
+ cam.lookAt(st.x+fx*4,1.2+st.jumpY*.35,st.z+fz*4);
+ const f=65+Math.min(22,Math.abs(st.v)/MPH*.28);if(Math.abs(cam.fov-f)>.1){cam.fov=f;cam.updateProjectionMatrix()}
+ mpTick(dt);drawMap();R.render(scene,cam)}
+// ---------- multiplayer (Firebase Realtime Database) ----------
+// IMPORTANT: Paste your Firebase web app config below (Firebase Console > Project settings > Your apps).
+const firebaseConfig = {
+ apiKey: "AIzaSyDF0KQX_6Xv-3jtolLvws7C5u0Ms4vdV34",
+ authDomain: "surron-a388f.firebaseapp.com",
+ // Firebase Realtime Database URL.
+ databaseURL: "https://surron-a388f-default-rtdb.firebaseio.com",
+ projectId: "surron-a388f",
+ storageBucket: "surron-a388f.firebasestorage.app",
+ messagingSenderId: "5053967626",
+ appId: "1:5053967626:web:c8c4c1d9ea945d6ad75ef3",
+ measurementId: "G-PGF59WNQQG"
+};
+const mp={room:null,lobby:null,cur:null,status:'Connecting to multiplayer…',name:'Rider'+(100+((Math.random()*900)|0)),uid:null,roomRef:null,playersRef:null,listener:null,peerData:{}};
+const others=new Map(),num=(v,d)=>Number.isFinite(v)?v:(d||0),cleanName=n=>String(n||'').replace(/[^A-Za-z0-9 ._-]/g,'').slice(0,16)||'Rider';
+let chatRef=null,chatListener=null;
+function toggleChat(){const box=$('chatBox');const opening=box.style.display!=='flex';box.style.display=opening?'flex':'none';if(opening)$('chatInput').focus()}
+function closeChat(){$('chatBox').style.display='none'}
+function addChatMessage(data){if(!data||typeof data.text!=='string')return;const list=$('chatMessages');const empty=list.querySelector('[data-empty]');if(empty)empty.remove();const row=document.createElement('div');row.className='chatMsg';const name=document.createElement('b');name.textContent=cleanName(data.n||'Rider');const msg=document.createElement('span');msg.textContent=': '+data.text;row.append(name,msg);if(data.ts){const time=document.createElement('small');time.textContent=' · '+new Date(data.ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});row.append(time)}list.append(row);while(list.children.length>40)list.firstElementChild.remove();list.scrollTop=list.scrollHeight}
+function startGlobalChat(){if(!mp.uid||!firebase.database)return;chatRef=firebase.database().ref('globalChat/messages').limitToLast(40);if(chatListener)chatRef.off('child_added',chatListener);$('chatMessages').innerHTML='';chatListener=snap=>addChatMessage(snap.val());chatRef.on('child_added',chatListener,err=>{$('chatStatus').textContent='Chat error: '+err.message});$('chatStatus').textContent='Connected · messages are visible to everyone'}
+$('chatToggle').onclick=toggleChat;$('chatClose').onclick=closeChat;
+$('chatForm').addEventListener('submit',async e=>{e.preventDefault();const input=$('chatInput'),text=input.value.trim();if(!text)return;if(!mp.uid||!firebase.database){$('chatStatus').textContent='Chat is still connecting…';return}input.disabled=true;try{await firebase.database().ref('globalChat/messages').push().set({uid:mp.uid,n:cleanName(mp.name),text:text.slice(0,180),ts:firebase.database.ServerValue.TIMESTAMP});input.value='';$('chatStatus').textContent='Connected · messages are visible to everyone'}catch(err){$('chatStatus').textContent='Could not send: '+err.message}finally{input.disabled=false;input.focus()}});
+function makeLabel(txt){const c=document.createElement('canvas');c.width=256;c.height=64;const x=c.getContext('2d');x.fillStyle='rgba(0,0,0,.55)';x.fillRect(0,0,256,64);x.fillStyle='#fff';x.font='bold 32px sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(txt,128,34);
+ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true}));s.scale.set(4,1,1);s.position.set(0,2.9,0);return s}
+function makeRemote(v){const sc=v.m==='scooter',wr=sc?.2:v.m==='ebike'?.33:.35,g=new THREE.Group(),t=new THREE.Group();t.position.set(0,wr,-.7);g.add(t);g.scale.setScalar(v.s||1);
+ const add=(geo,c,x,y,z)=>{const m=M(geo,c);m.position.set(x,y,z);t.add(m);return m};
+ const ws=[0,1.4].map(z=>add(new THREE.CylinderGeometry(wr,wr,.14*(v.fat?2.2:1),14).rotateZ(Math.PI/2),0x111111,0,0,z));
+ add(new THREE.BoxGeometry(.2,.3,sc?1.1:.9),v.c,0,sc?-.05:.3,.7);add(new THREE.BoxGeometry(.06,.8,.06),0x888888,0,.35,1.35);
+ const by=sc?.75:.98,body=add(new THREE.BoxGeometry(.4,.6,.25),0x1565c0,0,by,.35);add(new THREE.SphereGeometry(.17,12,10),0xf0c9a0,0,by+.47,.4);
+ return{g,t,ws,body,by,name:null,tx:0,tz:0,th:0,pitch:0,stand:0,v:0}}
+let mpAcc=0,mpUi=0;
+function mpTick(dt){const room=mp.room;mpUi+=dt;
+ if(mpUi>.5){mpUi=0;$('pc').textContent=room?('🌐 '+(1+room.peers().length)+' online'):'';if($('mpP').style.display==='block')renderMP()}
+ if(!room){if(others.size){for(const e of others.values())scene.remove(e.g);others.clear()}return}
+ mpAcc+=dt;if(mpAcc>.12){mpAcc=0;room.presence({n:mp.name,x:+st.x.toFixed(1),z:+st.z.toFixed(1),h:+st.h.toFixed(2),v:+st.v.toFixed(1),p:+st.pitch.toFixed(2),s:+(st.stand||0).toFixed(2),b:st.bike,c:Math.floor(st.coins)}).catch(()=>{})}
+ const seen=new Set();
+ for(const p of room.peers()){const r=p.presence;if(p.peer===mp.uid||typeof r.x!=='number'||typeof r.z!=='number')continue;
+  seen.add(p.peer);let e=others.get(p.peer);const v=V.find(q=>q.id===r.b)||V[5];
+  if(!e||e.b!==v.id){if(e)scene.remove(e.g);e=makeRemote(v);e.b=v.id;e.g.position.set(num(r.x),0,num(r.z));e.g.rotation.y=num(r.h);scene.add(e.g);others.set(p.peer,e)}
+  const nm=cleanName(r.n);if(e.name!==nm){if(e.lab){e.g.remove(e.lab);e.lab.material.map.dispose();e.lab.material.dispose()}e.lab=makeLabel(nm);e.g.add(e.lab);e.name=nm}
+  e.tx=Math.max(-H,Math.min(H,num(r.x)));e.tz=Math.max(-H,Math.min(H,num(r.z)));e.th=num(r.h);e.pitch=Math.max(0,Math.min(2,num(r.p)));e.stand=Math.max(0,Math.min(1,num(r.s)));e.v=num(r.v);e.c=num(r.c)}
+ for(const[id,e]of others)if(!seen.has(id)){scene.remove(e.g);if(e.lab){e.lab.material.map.dispose();e.lab.material.dispose()}others.delete(id)}
+ const kk=1-Math.exp(-10*dt);
+ for(const e of others.values()){const g=e.g;g.position.x+=(e.tx-g.position.x)*kk;g.position.z+=(e.tz-g.position.z)*kk;let dh=e.th-g.rotation.y;dh=Math.atan2(Math.sin(dh),Math.cos(dh));g.rotation.y+=dh*kk;e.t.rotation.x=-e.pitch;e.body.position.y=e.by+.3*e.stand;e.ws.forEach(w=>w.rotation.x+=e.v*dt/.35)}}
+function renderMP(){const L=$('mpList');L.textContent='';const rows=[{n:mp.name+' (you)',c:Math.floor(st.coins),b:st.bike}];
+ for(const p of(mp.room?mp.room.peers():[])){const r=p.presence;if(p.peer===mp.uid||typeof r.x!=='number')continue;rows.push({n:cleanName(r.n),c:Math.floor(num(r.c)),b:r.b})}
+ rows.sort((a,b)=>b.c-a.c);
+ for(const r of rows){const d=document.createElement('div');d.className='row';const a=document.createElement('span'),b=document.createElement('span'),v=V.find(q=>q.id===r.b);a.textContent=r.n;b.textContent='🪙 '+r.c+(v?' · '+v.n:'');d.append(a,b);L.append(d)}
+ $('mpStat').textContent=mp.status||'Connecting…'}
+function makeRoom(roomName){
+ const ref=firebase.database().ref('rooms/'+roomName+'/players');
+ const room={
+  peers:()=>Object.entries(mp.peerData).map(([peer,presence])=>({peer,presence})),
+  presence:async data=>{if(!mp.uid)throw new Error('Not signed in');await ref.child(mp.uid).update({...data,lastSeen:firebase.database.ServerValue.TIMESTAMP})},
+  leave:async()=>{if(mp.listener){ref.off('value',mp.listener);mp.listener=null}try{if(mp.uid)await ref.child(mp.uid).remove()}catch(e){}mp.peerData={}}
+ };
+ room.ref=ref;return room;
+}
+async function setRoom(code){
+ if(!mp.uid||!firebase.database){mp.status='Multiplayer is not ready. Check your Firebase config and authentication settings.';renderMP();return}
+ if(mp.cur)await mp.cur.leave();mp.room=mp.cur=null;
+ const roomName=code?'private_'+code:'public';const room=makeRoom(roomName);mp.cur=mp.room=room;
+ mp.playersRef=room.ref;mp.listener=snap=>{mp.peerData=snap.val()||{};renderMP()};room.ref.on('value',mp.listener,err=>{mp.status='Room error: '+err.message;renderMP()});
+ try{await room.ref.child(mp.uid).onDisconnect().remove();await room.presence({n:mp.name,x:+st.x.toFixed(1),z:+st.z.toFixed(1),h:+st.h.toFixed(2),v:+st.v.toFixed(1),p:+st.pitch.toFixed(2),s:+(st.stand||0).toFixed(2),b:st.bike,c:Math.floor(st.coins)});mp.status=code?'Joined private room: '+code:'Connected to the public lobby'}catch(e){mp.status='Firebase error: '+e.message}
+ renderMP();
+}
+$('mpName').value=mp.name;$('bMP').onclick=()=>openP('mpP');
+$('mpJoin').onclick=async()=>{mp.name=cleanName($('mpName').value);$('mpName').value=mp.name;const code=$('mpRoom').value.toLowerCase().replace(/[^a-z0-9_.-]/g,'').replace(/^[^a-z0-9]+/,'').slice(0,40);await setRoom(code);renderMP()};
+(async()=>{try{
+ if(firebaseConfig.apiKey==='PASTE_API_KEY_HERE'||firebaseConfig.projectId==='PASTE_PROJECT_ID_HERE'||firebaseConfig.databaseURL==='PASTE_REALTIME_DATABASE_URL_HERE'){mp.status='Add your Realtime Database URL in the Firebase config section of index.html.';renderMP();return}
+ if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
+ await firebase.auth().signInAnonymously();mp.uid=firebase.auth().currentUser.uid;startGlobalChat();mp.lobby=makeRoom('public');mp.status='Signed in. Connecting to public lobby…';await setRoom('');
+ }catch(e){mp.status='Firebase setup error: '+e.message+' (enable Anonymous sign-in and Realtime Database)';renderMP()}})();
+setBike(st.bike);cam.position.set(0,4,12);requestAnimationFrame(loop);
+</script></body></html>
